@@ -96,7 +96,7 @@ const shopSettingSchema = new mongoose.Schema(
     },
     dailyReportEnabled: {
       type: Boolean,
-      default: true,
+      default: false,
     },
     updatedBy: {
       type: mongoose.Schema.Types.ObjectId,

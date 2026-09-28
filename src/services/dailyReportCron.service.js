@@ -91,23 +91,23 @@ async function generateDailyReport() {
 async function getCronExpression() {
   try {
     const settings = await ShopSetting.getCurrentSettings();
-    if (!settings || settings.dailyReportEnabled === false) {
-      console.log("[DailyReportCron] Daily reports are disabled.");
+    if (!settings || !settings.dailyReportEnabled) {
+      console.log("[DailyReportCron] Daily reports are disabled (default is off).");
       return null;
     }
     const time = settings.dailyReportTime || "21:00";
     const [hour, minute] = time.split(":");
     return `${parseInt(minute)} ${parseInt(hour)} * * *`;
   } catch (error) {
-    console.error("[DailyReportCron] Error reading settings, using default 21:00:", error.message);
-    return "0 21 * * *";
+    console.error("[DailyReportCron] Error reading settings (defaulting to disabled):", error.message);
+    return null;
   }
 }
 
 export async function startDailyReportCron() {
   const cronExpr = await getCronExpression();
   if (!cronExpr) {
-    console.log("[DailyReportCron] Cron not started — daily reports are disabled.");
+    console.log("[DailyReportCron] Cron not started — daily reports are disabled (default is off).");
     return;
   }
 
