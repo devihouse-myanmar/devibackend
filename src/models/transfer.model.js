@@ -19,18 +19,6 @@ const transferLineItemSchema = new mongoose.Schema(
       ref: "GoodsRecievedNote.lineItems",
       default: null,
     },
-    batchNumber: {
-      type: String,
-      default: "__LEGACY__",
-    },
-    expiryDate: {
-      type: Date,
-      default: null,
-    },
-    manufacturingDate: {
-      type: Date,
-      default: null,
-    },
     notes: {
       type: String,
       trim: true,
@@ -345,20 +333,15 @@ transferSchema.methods._updateGRNToWarehouseStock = async function (
       {
         inventoryId: transferItem.inventoryId,
         warehouseId: this.destinationWarehouseId,
-        batchNumber: transferItem.batchNumber || grnLineItem.batchNumber || "__LEGACY__",
       },
       {
         $inc: { quantity: transferItem.quantity },
         $set: { 
           lastUpdated: new Date(),
-          expiryDate: transferItem.expiryDate || grnLineItem.expiryDate || null,
-          manufacturingDate: transferItem.manufacturingDate || grnLineItem.manufacturingDate || null
         },
         $setOnInsert: {
           inventoryId: transferItem.inventoryId,
           warehouseId: this.destinationWarehouseId,
-          batchNumber: transferItem.batchNumber || grnLineItem.batchNumber || "__LEGACY__",
-          // quantity is handled by $inc - if document doesn't exist, $inc creates it with transferItem.quantity
         },
       },
       {
@@ -449,19 +432,15 @@ transferSchema.methods._updateGRNToStorefrontStock = async function (
       {
         inventoryId: transferItem.inventoryId,
         storefrontId: this.destinationStorefrontId,
-        batchNumber: transferItem.batchNumber || grnLineItem.batchNumber || "__LEGACY__",
       },
       {
         $inc: { quantity: transferItem.quantity },
         $set: { 
           lastUpdated: new Date(),
-          expiryDate: transferItem.expiryDate || grnLineItem.expiryDate || null,
-          manufacturingDate: transferItem.manufacturingDate || grnLineItem.manufacturingDate || null
         },
         $setOnInsert: {
           inventoryId: transferItem.inventoryId,
           storefrontId: this.destinationStorefrontId,
-          batchNumber: transferItem.batchNumber || grnLineItem.batchNumber || "__LEGACY__",
         },
       },
       {
@@ -500,19 +479,18 @@ transferSchema.methods._updateWarehouseToStorefrontStock = async function (
     const warehouseStock = await WarehouseStock.findOne({
       inventoryId: transferItem.inventoryId,
       warehouseId: this.sourceId,
-      batchNumber: transferItem.batchNumber || "__LEGACY__",
     }).session(session || null);
 
     if (!warehouseStock) {
       throw new Error(
-        `Warehouse stock not found for inventory ${transferItem.inventoryId} with batch ${transferItem.batchNumber || "__LEGACY__"} in warehouse ${this.sourceId}`
+        `Warehouse stock not found for inventory ${transferItem.inventoryId} in warehouse ${this.sourceId}`
       );
     }
 
     const availableQty = warehouseStock.quantity || 0;
     if (transferItem.quantity > availableQty) {
       throw new Error(
-        `Transfer quantity (${transferItem.quantity}) exceeds available warehouse stock (${availableQty}) for inventory ${transferItem.inventoryId} with batch ${transferItem.batchNumber || "__LEGACY__"}`
+        `Transfer quantity (${transferItem.quantity}) exceeds available warehouse stock (${availableQty}) for inventory ${transferItem.inventoryId}`
       );
     }
 
@@ -521,7 +499,6 @@ transferSchema.methods._updateWarehouseToStorefrontStock = async function (
       {
         inventoryId: transferItem.inventoryId,
         warehouseId: this.sourceId,
-        batchNumber: transferItem.batchNumber || "__LEGACY__",
       },
       {
         $inc: { quantity: -transferItem.quantity }, // Negative to deduct
@@ -539,20 +516,15 @@ transferSchema.methods._updateWarehouseToStorefrontStock = async function (
       {
         inventoryId: transferItem.inventoryId,
         storefrontId: this.destinationStorefrontId,
-        batchNumber: transferItem.batchNumber || "__LEGACY__",
       },
       {
         $inc: { quantity: transferItem.quantity },
         $set: { 
           lastUpdated: new Date(),
-          expiryDate: transferItem.expiryDate || warehouseStock.expiryDate || null,
-          manufacturingDate: transferItem.manufacturingDate || warehouseStock.manufacturingDate || null
         },
         $setOnInsert: {
           inventoryId: transferItem.inventoryId,
           storefrontId: this.destinationStorefrontId,
-          batchNumber: transferItem.batchNumber || "__LEGACY__",
-          // quantity is handled by $inc - if document doesn't exist, $inc creates it with transferItem.quantity
         },
       },
       {
@@ -600,19 +572,18 @@ transferSchema.methods._updateWarehouseToWarehouseStock = async function (
     const warehouseStock = await WarehouseStock.findOne({
       inventoryId: transferItem.inventoryId,
       warehouseId: this.sourceId,
-      batchNumber: transferItem.batchNumber || "__LEGACY__",
     }).session(session || null);
 
     if (!warehouseStock) {
       throw new Error(
-        `Warehouse stock not found for inventory ${transferItem.inventoryId} with batch ${transferItem.batchNumber || "__LEGACY__"} in warehouse ${this.sourceId}`
+        `Warehouse stock not found for inventory ${transferItem.inventoryId} in warehouse ${this.sourceId}`
       );
     }
 
     const availableQty = warehouseStock.quantity || 0;
     if (transferItem.quantity > availableQty) {
       throw new Error(
-        `Transfer quantity (${transferItem.quantity}) exceeds available warehouse stock (${availableQty}) for inventory ${transferItem.inventoryId} with batch ${transferItem.batchNumber || "__LEGACY__"}`
+        `Transfer quantity (${transferItem.quantity}) exceeds available warehouse stock (${availableQty}) for inventory ${transferItem.inventoryId}`
       );
     }
 
@@ -621,7 +592,6 @@ transferSchema.methods._updateWarehouseToWarehouseStock = async function (
       {
         inventoryId: transferItem.inventoryId,
         warehouseId: this.sourceId,
-        batchNumber: transferItem.batchNumber || "__LEGACY__",
       },
       {
         $inc: { quantity: -transferItem.quantity }, // Negative to deduct
@@ -639,19 +609,15 @@ transferSchema.methods._updateWarehouseToWarehouseStock = async function (
       {
         inventoryId: transferItem.inventoryId,
         warehouseId: this.destinationWarehouseId,
-        batchNumber: transferItem.batchNumber || "__LEGACY__",
       },
       {
         $inc: { quantity: transferItem.quantity },
         $set: { 
           lastUpdated: new Date(),
-          expiryDate: transferItem.expiryDate || warehouseStock.expiryDate || null,
-          manufacturingDate: transferItem.manufacturingDate || warehouseStock.manufacturingDate || null
         },
         $setOnInsert: {
           inventoryId: transferItem.inventoryId,
           warehouseId: this.destinationWarehouseId,
-          batchNumber: transferItem.batchNumber || "__LEGACY__",
         },
       },
       {
@@ -700,19 +666,18 @@ transferSchema.methods._updateStorefrontToWarehouseStock = async function (
     const storefrontStock = await StorefrontInventory.findOne({
       inventoryId: transferItem.inventoryId,
       storefrontId: this.sourceId,
-      batchNumber: transferItem.batchNumber || "__LEGACY__",
     }).session(session || null);
 
     if (!storefrontStock) {
       throw new Error(
-        `Storefront stock not found for inventory ${transferItem.inventoryId} with batch ${transferItem.batchNumber || "__LEGACY__"} in storefront ${this.sourceId}`
+        `Storefront stock not found for inventory ${transferItem.inventoryId} in storefront ${this.sourceId}`
       );
     }
 
     const availableQty = storefrontStock.quantity || 0;
     if (transferItem.quantity > availableQty) {
       throw new Error(
-        `Transfer quantity (${transferItem.quantity}) exceeds available storefront stock (${availableQty}) for inventory ${transferItem.inventoryId} with batch ${transferItem.batchNumber || "__LEGACY__"}`
+        `Transfer quantity (${transferItem.quantity}) exceeds available storefront stock (${availableQty}) for inventory ${transferItem.inventoryId}`
       );
     }
 
@@ -721,7 +686,6 @@ transferSchema.methods._updateStorefrontToWarehouseStock = async function (
       {
         inventoryId: transferItem.inventoryId,
         storefrontId: this.sourceId,
-        batchNumber: transferItem.batchNumber || "__LEGACY__",
       },
       {
         $inc: { quantity: -transferItem.quantity }, // Negative to deduct
@@ -739,19 +703,15 @@ transferSchema.methods._updateStorefrontToWarehouseStock = async function (
       {
         inventoryId: transferItem.inventoryId,
         warehouseId: this.destinationWarehouseId,
-        batchNumber: transferItem.batchNumber || "__LEGACY__",
       },
       {
         $inc: { quantity: transferItem.quantity },
         $set: { 
           lastUpdated: new Date(),
-          expiryDate: transferItem.expiryDate || storefrontStock.expiryDate || null,
-          manufacturingDate: transferItem.manufacturingDate || storefrontStock.manufacturingDate || null
         },
         $setOnInsert: {
           inventoryId: transferItem.inventoryId,
           warehouseId: this.destinationWarehouseId,
-          batchNumber: transferItem.batchNumber || "__LEGACY__",
         },
       },
       {
@@ -799,19 +759,18 @@ transferSchema.methods._updateStorefrontToStorefrontStock = async function (
     const storefrontStock = await StorefrontInventory.findOne({
       inventoryId: transferItem.inventoryId,
       storefrontId: this.sourceId,
-      batchNumber: transferItem.batchNumber || "__LEGACY__",
     }).session(session || null);
 
     if (!storefrontStock) {
       throw new Error(
-        `Storefront stock not found for inventory ${transferItem.inventoryId} with batch ${transferItem.batchNumber || "__LEGACY__"} in storefront ${this.sourceId}`
+        `Storefront stock not found for inventory ${transferItem.inventoryId} in storefront ${this.sourceId}`
       );
     }
 
     const availableQty = storefrontStock.quantity || 0;
     if (transferItem.quantity > availableQty) {
       throw new Error(
-        `Transfer quantity (${transferItem.quantity}) exceeds available storefront stock (${availableQty}) for inventory ${transferItem.inventoryId} with batch ${transferItem.batchNumber || "__LEGACY__"}`
+        `Transfer quantity (${transferItem.quantity}) exceeds available storefront stock (${availableQty}) for inventory ${transferItem.inventoryId}`
       );
     }
 
@@ -820,7 +779,6 @@ transferSchema.methods._updateStorefrontToStorefrontStock = async function (
       {
         inventoryId: transferItem.inventoryId,
         storefrontId: this.sourceId,
-        batchNumber: transferItem.batchNumber || "__LEGACY__",
       },
       {
         $inc: { quantity: -transferItem.quantity }, // Negative to deduct
@@ -838,19 +796,15 @@ transferSchema.methods._updateStorefrontToStorefrontStock = async function (
       {
         inventoryId: transferItem.inventoryId,
         storefrontId: this.destinationStorefrontId,
-        batchNumber: transferItem.batchNumber || "__LEGACY__",
       },
       {
         $inc: { quantity: transferItem.quantity },
         $set: { 
           lastUpdated: new Date(),
-          expiryDate: transferItem.expiryDate || storefrontStock.expiryDate || null,
-          manufacturingDate: transferItem.manufacturingDate || storefrontStock.manufacturingDate || null
         },
         $setOnInsert: {
           inventoryId: transferItem.inventoryId,
           storefrontId: this.destinationStorefrontId,
-          batchNumber: transferItem.batchNumber || "__LEGACY__",
         },
       },
       {

@@ -39,18 +39,6 @@ const grnLineItemSchema = new mongoose.Schema(
       required: [true, "Unit price is required"],
       min: [0, "Unit price cannot be negative"],
     },
-    batchNumber: {
-      type: String,
-      default: "__LEGACY__",
-    },
-    expiryDate: {
-      type: Date,
-      default: null,
-    },
-    manufacturingDate: {
-      type: Date,
-      default: null,
-    },
     totalPrice: {
       type: Number,
       required: [true, "Total price is required"],

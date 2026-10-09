@@ -52,6 +52,32 @@ const inventorySchema = new mongoose.Schema(
       trim: true,
       default: "Unknown",
     },
+    color: {
+      type: String,
+      trim: true,
+      default: "Standard",
+    },
+    size: {
+      type: String,
+      trim: true,
+      default: "Free Size",
+    },
+    images: [
+      {
+        url: {
+          type: String,
+          required: true,
+        },
+        color: {
+          type: String,
+          default: "",
+        },
+        isPrimary: {
+          type: Boolean,
+          default: false,
+        },
+      },
+    ],
     description: {
       type: String,
       trim: true,
@@ -92,7 +118,7 @@ const inventorySchema = new mongoose.Schema(
       type: String,
       required: [true, "Unit of measure is required"],
       trim: true,
-      default: "piece",
+      default: "ကိုက်",
     },
     reorderPoint: {
       type: Number,

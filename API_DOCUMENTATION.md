@@ -1,4 +1,4 @@
-# AutoShop (OTAS POS) - Backend API Documentation
+# Devi House (OTAS POS) - Backend API Documentation
 
 > **Base URL:** `http://localhost:5000/api/v1` (or your deployed server domain)  
 > **Protocol:** HTTP / HTTPS  

@@ -10,6 +10,7 @@ import {
   removeOrderItems,
   hardDeleteOrder,
   updateEntireOrder,
+  updateOrderStatusAndPayment,
 } from "../controllers/order.controller.js";
 
 const router = express.Router();
@@ -41,6 +42,13 @@ router.patch(
   protect,
   permissionGranted("owner", "admin", "cashier"),
   updateEntireOrder
+);
+// Update order status & payment verification status (e.g. for ecommerce)
+router.patch(
+  "/order/:orderId/status",
+  protect,
+  permissionGranted("owner", "admin", "cashier"),
+  updateOrderStatusAndPayment
 );
 router.get(
   "/order/storefront/:storefrontId",

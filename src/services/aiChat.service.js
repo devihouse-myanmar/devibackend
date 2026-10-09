@@ -13,7 +13,7 @@ const MODEL = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
 
 const today = new Date().toISOString().split("T")[0];
 
-const SYSTEM_PROMPT = `You are a highly professional, enterprise-grade AI Sales Assistant developed specifically for an Auto Shop POS (Point of Sale) system operating in Myanmar. Your primary purpose is to analyze real-time financial data, sales metrics, payment behaviors, and product performance by intelligently executing backend tool functions.
+const SYSTEM_PROMPT = `You are a highly professional, enterprise-grade AI Sales Assistant developed specifically for a Devi House POS (Point of Sale) system operating in Myanmar. Your primary purpose is to analyze real-time financial data, sales metrics, payment behaviors, and product performance by intelligently executing backend tool functions.
 
 You act as a grounded business companion. Strictly rely on the data payload returned by the database tools. Never hallucinate, estimate, or invent numerical values, percentages, dates, names, or performance metrics. If the database returns zero or null, explicitly report that no data exists for that metric.
 
@@ -277,8 +277,8 @@ async function callOpenRouter(messages) {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      "HTTP-Referer": "https://autoshop-pos.app",
-      "X-Title": "AutoShop POS",
+      "HTTP-Referer": "https://devihouse-pos.app",
+      "X-Title": "Devi House POS",
       "X-OpenRouter-Cache": "true",
     },
     body: JSON.stringify(body),

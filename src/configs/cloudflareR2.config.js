@@ -113,6 +113,21 @@ export const validateLogoFile = (file) => {
     throw new Error("File size too large. Maximum size is 5MB.");
   }
 
+// Validate file type for slip upload
+export const validateSlipImage = (file) => {
+  const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+  const maxSize = 5 * 1024 * 1024; // 5MB
+
+  if (!file || !file.mimetype || !allowedTypes.includes(file.mimetype)) {
+    throw new Error(
+      "Invalid payment slip file type. Only JPEG, PNG, and WebP images are allowed.",
+    );
+  }
+
+  if (file.size > maxSize) {
+    throw new Error("Payment slip image file size too large. Maximum size is 5MB.");
+  }
+
   return true;
 };
 

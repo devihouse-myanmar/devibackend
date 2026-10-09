@@ -18,19 +18,6 @@ const warehouseStockSchema = new mongoose.Schema(
       min: [0, "Quantity cannot be negative"],
       default: 0,
     },
-    batchNumber: {
-      type: String,
-      default: "__LEGACY__",
-      required: [true, "Batch number is required"],
-    },
-    expiryDate: {
-      type: Date,
-      default: null,
-    },
-    manufacturingDate: {
-      type: Date,
-      default: null,
-    },
     // Low stock alert flag (calculated based on Inventory reorderPoint)
     isLowStock: {
       type: Boolean,
@@ -49,9 +36,9 @@ const warehouseStockSchema = new mongoose.Schema(
   }
 );
 
-// Compound unique index: One stock record per product per warehouse per batch
+// Compound unique index: One stock record per product per warehouse
 warehouseStockSchema.index(
-  { inventoryId: 1, warehouseId: 1, batchNumber: 1 },
+  { inventoryId: 1, warehouseId: 1 },
   { unique: true }
 );
 
@@ -60,7 +47,6 @@ warehouseStockSchema.index({ warehouseId: 1 });
 warehouseStockSchema.index({ inventoryId: 1 });
 warehouseStockSchema.index({ warehouseId: 1, isLowStock: 1 }); // For low stock queries per warehouse
 warehouseStockSchema.index({ quantity: 1 }); // For sorting by quantity
-warehouseStockSchema.index({ expiryDate: 1 }); // For expiry date queries
 
 // Virtual for available quantity (same as quantity since we don't track reservations here)
 warehouseStockSchema.virtual("availableQuantity").get(function () {
@@ -70,16 +56,14 @@ warehouseStockSchema.virtual("availableQuantity").get(function () {
 // Static method to find or create stock record
 warehouseStockSchema.statics.findOrCreateStock = async function (
   inventoryId,
-  warehouseId,
-  batchNumber = "__LEGACY__"
+  warehouseId
 ) {
-  let stock = await this.findOne({ inventoryId, warehouseId, batchNumber });
+  let stock = await this.findOne({ inventoryId, warehouseId });
 
   if (!stock) {
     stock = await this.create({
       inventoryId,
       warehouseId,
-      batchNumber,
       quantity: 0,
     });
   }

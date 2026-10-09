@@ -195,10 +195,6 @@ export const getAllStorefrontInventory = asyncErrorHandler(
     // Build query
     const query = {};
 
-    if (batchNumber) {
-      query.batchNumber = batchNumber;
-    }
-
     if (storefrontId) {
       if (!mongoose.Types.ObjectId.isValid(storefrontId)) {
         return next(new CustomError(400, "Invalid storefront ID format"));

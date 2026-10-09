@@ -273,67 +273,35 @@ export const createOrder = asyncErrorHandler(async (req, res, next) => {
             throw new CustomError(400, "Final amount cannot be negative");
           }
 
-          // 4. Validate stock availability and deduct stock (multi-batch aware, FIFO)
+          // 4. Validate stock availability and deduct stock (direct deduction)
           for (const product of validatedProducts) {
-            // Fetch active batch records with available quantity for this product in this storefront (oldest first = FIFO)
-            const stockRecords = await StorefrontInventory.find(
+            const stockRecord = await StorefrontInventory.findOne(
               {
                 inventoryId: product.inventoryId,
                 storefrontId: storefrontId,
-                quantity: { $gt: 0 },
               },
               null,
-              { session, sort: { createdAt: 1 } },
+              { session },
             );
 
-            if (!stockRecords || stockRecords.length === 0) {
-              const inventoryItem = inventoryMap.get(
-                product.inventoryId.toString(),
-              );
-              throw new CustomError(
-                400,
-                `Insufficient stock for product '${
-                  inventoryItem?.productCode || product.inventoryId
-                }' (${
-                  inventoryItem?.productName || "Unknown"
-                }). Available: 0, Requested: ${product.quantity}`,
-              );
-            }
-
-            // Sum total available quantity across all batches
-            const totalAvailable = stockRecords.reduce(
-              (sum, r) => sum + (r.quantity || 0),
-              0,
+            const inventoryItem = inventoryMap.get(
+              product.inventoryId.toString(),
             );
+            const productLabel = inventoryItem
+              ? `'${inventoryItem.productCode}' (${inventoryItem.productName})`
+              : product.inventoryId;
 
-            if (totalAvailable < product.quantity) {
-              const inventoryItem = inventoryMap.get(
-                product.inventoryId.toString(),
-              );
+            const available = stockRecord?.quantity || 0;
+            if (!stockRecord || available < product.quantity) {
               throw new CustomError(
                 400,
-                `Insufficient stock for product '${
-                  inventoryItem?.productCode || product.inventoryId
-                }' (${
-                  inventoryItem?.productName || "Unknown"
-                }). Available: ${totalAvailable}, Requested: ${
-                  product.quantity
-                }`,
+                `Insufficient stock for product ${productLabel}. Available: ${available}, Requested: ${product.quantity}`,
               );
             }
 
-            // Deduct FIFO: consume oldest batches first, skip empty ones
-            let remaining = product.quantity;
-            for (const record of stockRecords) {
-              if (remaining <= 0) break;
-              const batchQty = record.quantity || 0;
-              if (batchQty <= 0) continue; // skip empty batches
-              const deduct = Math.min(batchQty, remaining);
-              record.quantity -= deduct;
-              record.lastUpdated = new Date();
-              await record.save({ session });
-              remaining -= deduct;
-            }
+            stockRecord.quantity -= product.quantity;
+            stockRecord.lastUpdated = new Date();
+            await stockRecord.save({ session });
           }
 
           // 5. Create order with calculated values
@@ -482,7 +450,29 @@ export const getAllOrders = asyncErrorHandler(async (req, res, next) => {
   };
 
   // Extract query parameters
-  const { paymentType, paymentMethod, creditPersonId } = req.query;
+  const {
+    paymentType,
+    paymentMethod,
+    creditPersonId,
+    orderSource,
+    orderStatus,
+    paymentStatus,
+  } = req.query;
+
+  // Add orderSource filter if provided (pos or ecommerce)
+  if (orderSource !== undefined && orderSource !== "") {
+    filter.orderSource = orderSource.trim().toLowerCase();
+  }
+
+  // Add orderStatus filter if provided
+  if (orderStatus !== undefined && orderStatus !== "") {
+    filter.orderStatus = orderStatus.trim().toLowerCase();
+  }
+
+  // Add paymentStatus filter if provided
+  if (paymentStatus !== undefined && paymentStatus !== "") {
+    filter["paymentInfo.paymentStatus"] = paymentStatus.trim().toLowerCase();
+  }
 
   // Add creditPersonId filter if provided
   if (creditPersonId !== undefined && creditPersonId !== "") {
@@ -1558,39 +1548,26 @@ export const updateEntireOrder = asyncErrorHandler(async (req, res, next) => {
             ? `${invItem.productCode} (${invItem.productName})`
             : idStr;
 
-          const stockRecords = await StorefrontInventory.find(
+          const stockRecord = await StorefrontInventory.findOne(
             {
               inventoryId: new mongoose.Types.ObjectId(idStr),
               storefrontId: new mongoose.Types.ObjectId(storefrontId),
-              quantity: { $gt: 0 },
             },
             null,
-            { session, sort: { createdAt: 1 } },
+            { session },
           );
 
-          const totalAvailable = stockRecords.reduce(
-            (sum, r) => sum + (r.quantity || 0),
-            0,
-          );
-
-          if (totalAvailable < delta) {
+          const available = stockRecord?.quantity || 0;
+          if (!stockRecord || available < delta) {
             throw new CustomError(
               400,
-              `Insufficient stock for product '${productLabel}'. Available: ${totalAvailable}, Additional requested: ${delta}`,
+              `Insufficient stock for product '${productLabel}'. Available: ${available}, Additional requested: ${delta}`,
             );
           }
 
-          let remaining = delta;
-          for (const record of stockRecords) {
-            if (remaining <= 0) break;
-            const batchQty = record.quantity || 0;
-            if (batchQty <= 0) continue;
-            const deduct = Math.min(batchQty, remaining);
-            record.quantity -= deduct;
-            record.lastUpdated = new Date();
-            await record.save({ session });
-            remaining -= deduct;
-          }
+          stockRecord.quantity -= delta;
+          stockRecord.lastUpdated = new Date();
+          await stockRecord.save({ session });
         } else if (delta < 0) {
           // Quantity reduced -> Restore stock to StorefrontInventory
           const restoreQty = Math.abs(delta);
@@ -1743,3 +1720,85 @@ export const updateEntireOrder = asyncErrorHandler(async (req, res, next) => {
     await session.endSession();
   }
 });
+
+// Update order status and payment verification status (e.g., for ecommerce order processing)
+export const updateOrderStatusAndPayment = asyncErrorHandler(
+  async (req, res, next) => {
+    const { orderId } = req.params;
+    const { orderStatus, paymentStatus, note } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return next(new CustomError(400, "Invalid order ID format"));
+    }
+
+    const order = await Order.findOne({ _id: orderId, isDeleted: false });
+    if (!order) {
+      return next(new CustomError(404, "Order not found"));
+    }
+
+    if (orderStatus) {
+      const validStatuses = [
+        "pending",
+        "confirmed",
+        "shipped",
+        "delivered",
+        "completed",
+        "cancelled",
+      ];
+      if (!validStatuses.includes(orderStatus)) {
+        return next(
+          new CustomError(
+            400,
+            `Invalid order status. Allowed values: ${validStatuses.join(", ")}`,
+          ),
+        );
+      }
+      order.orderStatus = orderStatus;
+    }
+
+    if (paymentStatus) {
+      const validPaymentStatuses = [
+        "unpaid",
+        "pending_verification",
+        "paid",
+        "refunded",
+      ];
+      if (!validPaymentStatuses.includes(paymentStatus)) {
+        return next(
+          new CustomError(
+            400,
+            `Invalid payment status. Allowed values: ${validPaymentStatuses.join(", ")}`,
+          ),
+        );
+      }
+      if (!order.paymentInfo) {
+        order.paymentInfo = {};
+      }
+      order.paymentInfo.paymentStatus = paymentStatus;
+      if (paymentStatus === "paid") {
+        order.paidAmount = order.finalAmount;
+      }
+    }
+
+    if (note !== undefined) {
+      order.note = note;
+    }
+
+    await order.save();
+
+    await order.populate("storefrontId", "locationName locationCode");
+    await order.populate(
+      "ordersProducts.inventoryId",
+      "productName productCode SKU images color size",
+    );
+    await order.populate("creditPersonId", "name phone address");
+    await order.populate("soldBy", "name role");
+
+    res.status(200).json({
+      success: true,
+      message: "Order status updated successfully",
+      data: order,
+    });
+  },
+);
+

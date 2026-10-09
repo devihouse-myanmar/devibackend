@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "a90b6d21-f09c-4933-89b3-1cc67d4bf0cb",
-    "name": "AutoShop POS AI Chat API",
-    "description": "API endpoints for the AutoShop POS sales report AI chat assistant and chat logs history.",
+    "name": "Devi House POS AI Chat API",
+    "description": "API endpoints for the Devi House POS sales report AI chat assistant and chat logs history.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -29,7 +29,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"message\": \"ဒီလအတွက် အရောင်းအစီရင်ခံစာ ဘယ်လိုရှိလဲခင်ဗျာ\",\n  \"storefrontId\": \"\",\n  \"conversationHistory\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"ဟလို\"\n    },\n    {\n      \"role\": \"ai\",\n      \"content\": \"မင်္ဂလာပါခင်ဗျာ။ AutoShop POS AI Sales Report Assistant ဖြစ်ပါတယ်ခင်ဗျာ။ ဘာများ ကူညီပေးရမလဲခင်ဗျာ။\"\n    }\n  ]\n}"
+          "raw": "{\n  \"message\": \"ဒီလအတွက် အရောင်းအစီရင်ခံစာ ဘယ်လိုရှိလဲခင်ဗျာ\",\n  \"storefrontId\": \"\",\n  \"conversationHistory\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"ဟလို\"\n    },\n    {\n      \"role\": \"ai\",\n      \"content\": \"မင်္ဂလာပါခင်ဗျာ။ Devi House POS AI Sales Report Assistant ဖြစ်ပါတယ်ခင်ဗျာ။ ဘာများ ကူညီပေးရမလဲခင်ဗျာ။\"\n    }\n  ]\n}"
         },
         "url": {
           "raw": "{{BASE_URL}}/api/v1/sale-report/ai-chat",

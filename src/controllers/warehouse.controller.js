@@ -194,10 +194,6 @@ export const getAllWarehouseStock = asyncErrorHandler(
     // Build query
     const query = {};
 
-    if (batchNumber) {
-      query.batchNumber = batchNumber;
-    }
-
     if (warehouseId) {
       if (!mongoose.Types.ObjectId.isValid(warehouseId)) {
         return next(new CustomError(400, "Invalid warehouse ID format"));

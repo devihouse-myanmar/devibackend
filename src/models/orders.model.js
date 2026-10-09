@@ -68,7 +68,7 @@ const orderSchema = new mongoose.Schema(
     },
     paidAmount: {
       type: Number,
-      required: [true, "Paid amount is required"],
+      default: 0,
       min: [0, "Paid amount cannot be negative"],
     },
     extraChange: {
@@ -76,18 +76,72 @@ const orderSchema = new mongoose.Schema(
       default: 0,
       min: [0, "Extra change cannot be negative"],
     },
+    orderSource: {
+      type: String,
+      enum: {
+        values: ["pos", "ecommerce"],
+        message: "Order source must be pos or ecommerce",
+      },
+      default: "pos",
+    },
     orderStatus: {
       type: String,
       enum: {
-        values: ["pending", "completed", "cancelled"],
-        message: "Order status must be pending, completed, or cancelled",
+        values: [
+          "pending",
+          "confirmed",
+          "shipped",
+          "delivered",
+          "completed",
+          "cancelled",
+        ],
+        message:
+          "Order status must be pending, confirmed, shipped, delivered, completed, or cancelled",
       },
       default: "pending",
     },
     soldBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Admin",
-      required: [true, "Sold by is required"],
+      required: function () {
+        return this.orderSource === "pos";
+      },
+      default: null,
+    },
+    customerInfo: {
+      name: { type: String, trim: true, default: null },
+      phone: { type: String, trim: true, default: null },
+      address: { type: String, trim: true, default: null },
+      township: { type: String, trim: true, default: null },
+      city: { type: String, trim: true, default: "Yangon" },
+    },
+    deliveryInfo: {
+      deliMethod: {
+        type: String,
+        enum: ["deli_service", "car_gate"],
+        default: "deli_service",
+      },
+      gateName: { type: String, trim: true, default: "" },
+      deliFee: { type: Number, default: 0, min: 0 },
+    },
+    paymentInfo: {
+      paymentMethod: {
+        type: String,
+        enum: ["cod", "cash_down", "cash", "credit"],
+        default: "cod",
+      },
+      paymentProvider: {
+        type: String,
+        enum: ["kpay", "aya", "wave", "uabpay", "cbpay", "bank_transfer", null],
+        default: null,
+      },
+      paymentScreenshot: { type: String, default: null },
+      paymentScreenshotKey: { type: String, default: null },
+      paymentStatus: {
+        type: String,
+        enum: ["unpaid", "pending_verification", "paid", "refunded"],
+        default: "unpaid",
+      },
     },
     isDeleted: {
       type: Boolean,
@@ -175,19 +229,22 @@ orderSchema.virtual("remainingBalance").get(function () {
 });
 
 // Static method to generate order number
-// Format: ORD-YYYY-MM-DD-NNNNNN (e.g., ORD-2024-01-15-000001)
+// Format: {prefixType}-YYYY-MM-DD-NNNNNN (e.g., ORD-2024-01-15-000001 or ECO-2024-01-15-000001)
 // This format supports up to 999,999 orders per day
-// Accepts optional date parameter for manual order dates
-orderSchema.statics.generateOrderNumber = async function (date = null) {
+// Accepts optional date and prefixType ("ORD" or "ECO")
+orderSchema.statics.generateOrderNumber = async function (
+  date = null,
+  prefixType = "ORD"
+) {
   const now = date ? new Date(date) : new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
-  const prefix = `ORD-${year}-${month}-${day}-`;
+  const prefix = `${prefixType}-${year}-${month}-${day}-`;
 
-  // Find the latest order for this date (excluding deleted)
+  // Find the latest order for this date and prefix (excluding deleted)
   const latestOrder = await this.findOne({
-    orderNumber: new RegExp(`^ORD-${year}-${month}-${day}-`),
+    orderNumber: new RegExp(`^${prefixType}-${year}-${month}-${day}-`),
     isDeleted: false,
   })
     .sort({ orderNumber: -1 })
@@ -195,10 +252,10 @@ orderSchema.statics.generateOrderNumber = async function (date = null) {
 
   let sequence = 1;
   if (latestOrder && latestOrder.orderNumber) {
-    // Extract sequence number from format: ORD-YYYY-MM-DD-NNNNNN
+    // Extract sequence number from format: PREFIX-YYYY-MM-DD-NNNNNN
     const parts = latestOrder.orderNumber.split("-");
     if (parts.length === 5) {
-      // Format: ["ORD", "YYYY", "MM", "DD", "NNNNNN"]
+      // Format: ["PREFIX", "YYYY", "MM", "DD", "NNNNNN"]
       const latestSequence = parseInt(parts[4], 10);
       if (!isNaN(latestSequence)) {
         sequence = latestSequence + 1;
@@ -213,19 +270,21 @@ orderSchema.statics.generateOrderNumber = async function (date = null) {
     );
   }
 
-  // Format: ORD-YYYY-MM-DD-NNNNNN (e.g., ORD-2024-01-15-000001)
+  // Format: PREFIX-YYYY-MM-DD-NNNNNN
   return `${prefix}${sequence.toString().padStart(6, "0")}`;
 };
 
 // Indexes for better query performance
 orderSchema.index({ storefrontId: 1 });
 orderSchema.index({ isDeleted: 1 });
+orderSchema.index({ orderSource: 1 }); // For ecommerce vs pos queries
 orderSchema.index({ createdAt: -1 }); // For recent orders
 // Note: orderNumber index is automatically created by unique: true in schema
 orderSchema.index({ storefrontId: 1, isDeleted: 1 }); // Compound index for common queries
 orderSchema.index({ orderStatus: 1 }); // For status filtering
 orderSchema.index({ creditPersonId: 1 }); // For credit person queries
 orderSchema.index({ paymentType: 1 }); // For filtering by payment type
+orderSchema.index({ "paymentInfo.paymentStatus": 1 }); // For payment verification queries
 
 // Performance indexes for orderNumber queries (used in generateOrderNumber)
 orderSchema.index({ orderNumber: 1, isDeleted: 1 }); // For finding latest order by date prefix

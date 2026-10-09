@@ -7,7 +7,7 @@
 ## ဖိုင်ဖွဲ့စည်းပုံ
 
 ```
-📁 autoshopbackend
+📁 devibackend
 ├── 📄 src/services/dailyReportCron.service.js   ← Cron job ပင်မ လုပ်ဆောင်ချက်
 ├── 📄 src/server.js                              ← Cron ကို စတင်ရန် ချိတ်ဆက်ထားသော ဖိုင်
 ├── 📄 package.json                               ← node-cron dependency

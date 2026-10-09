@@ -100,16 +100,6 @@ export const createGRN = asyncErrorHandler(async (req, res, next) => {
   const grnLineItems = [];
   let calculatedTotalAmount = 0;
 
-  // Generate one shared default batch number for all products in this GRN
-  // (used only for products that don't supply their own batchNumber)
-  const now = new Date();
-  const dateStr =
-    now.getFullYear() +
-    String(now.getMonth() + 1).padStart(2, "0") +
-    String(now.getDate()).padStart(2, "0");
-  const randomAlphanumeric = Math.random().toString(36).substring(2, 6).toUpperCase();
-  const sharedDefaultBatchNumber = `BAT-${dateStr}-${randomAlphanumeric}`;
-
   // Process only the products that user wants to receive (partial GRN)
   for (const [productCodeUpper, userItem] of userLineItemsMap) {
     // Find the corresponding PO product
@@ -266,13 +256,6 @@ export const createGRN = asyncErrorHandler(async (req, res, next) => {
     // You pay for what you receive (good + bad), not just good quantity
     const totalPrice = receivedQuantity * unitPrice;
 
-    // Build line item with all data auto-filled from PO
-    let itemBatchNumber = userItem.batchNumber || null;
-    if (!itemBatchNumber || itemBatchNumber.trim() === "") {
-      // Use the shared batch number so all products in this GRN get the same batch
-      itemBatchNumber = sharedDefaultBatchNumber;
-    }
-
     const grnLineItem = {
       inventoryId: inventoryIdValue, // Auto-filled from PO or looked up by productCode
       receivedQuantity: receivedQuantity, // Auto-calculated: goodQuantity + badQuantity
@@ -280,9 +263,6 @@ export const createGRN = asyncErrorHandler(async (req, res, next) => {
       badQuantity: userItem.badQuantity, // User provides
       unitPrice: unitPrice, // Uses PO's buyingPrice if not provided
       totalPrice: totalPrice, // Auto-calculated: receivedQuantity * unitPrice (pay for all received items)
-      batchNumber: itemBatchNumber,
-      expiryDate: userItem.expiryDate || null,
-      manufacturingDate: userItem.manufacturingDate || null,
       notes: userItem.notes || null,
     };
 
@@ -632,11 +612,6 @@ export const updateGRNLineItems = asyncErrorHandler(async (req, res, next) => {
     // Update the line item
     lineItem.goodQuantity = updateItem.goodQuantity;
     lineItem.badQuantity = updateItem.badQuantity;
-
-    // Update expiryDate if provided
-    if (updateItem.expiryDate !== undefined) {
-      lineItem.expiryDate = updateItem.expiryDate ? new Date(updateItem.expiryDate) : null;
-    }
 
     // Update notes if provided
     if (updateItem.notes !== undefined) {

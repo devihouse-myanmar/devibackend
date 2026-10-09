@@ -439,23 +439,19 @@ export const createTransfer = asyncErrorHandler(async (req, res, next) => {
         inventoryId: inventoryIdValue,
         quantity: userItem.quantity,
         grnLineItemId: grnLineItem._id, // Link to GRN line item for tracking
-        batchNumber: userItem.batchNumber || grnLineItem.batchNumber || "__LEGACY__",
-        expiryDate: userItem.expiryDate || grnLineItem.expiryDate || null,
-        manufacturingDate: userItem.manufacturingDate || grnLineItem.manufacturingDate || null,
         notes: userItem.notes || null,
       });
     } else if (transferSourceType === "Warehouse") {
       const warehouseStock = await WarehouseStock.findOne({
         inventoryId: inventoryIdValue,
         warehouseId: sourceId,
-        batchNumber: userItem.batchNumber || "__LEGACY__",
       }).lean();
 
       if (!warehouseStock) {
         return next(
           new CustomError(
             404,
-            `Warehouse stock not found for product '${userItem.productCode}' with batch '${userItem.batchNumber || "__LEGACY__"}' in source warehouse`
+            `Warehouse stock not found for product '${userItem.productCode}' in source warehouse`
           )
         );
       }
@@ -465,7 +461,7 @@ export const createTransfer = asyncErrorHandler(async (req, res, next) => {
         return next(
           new CustomError(
             400,
-            `Transfer quantity (${userItem.quantity}) exceeds available warehouse stock (${availableQuantity}) for product '${userItem.productCode}' with batch '${userItem.batchNumber || "__LEGACY__"}'`
+            `Transfer quantity (${userItem.quantity}) exceeds available warehouse stock (${availableQuantity}) for product '${userItem.productCode}'`
           )
         );
       }
@@ -474,24 +470,19 @@ export const createTransfer = asyncErrorHandler(async (req, res, next) => {
       validatedLineItems.push({
         inventoryId: inventoryIdValue,
         quantity: userItem.quantity,
-        batchNumber: userItem.batchNumber || warehouseStock.batchNumber || "__LEGACY__",
-        expiryDate: userItem.expiryDate || warehouseStock.expiryDate || null,
-        manufacturingDate: userItem.manufacturingDate || warehouseStock.manufacturingDate || null,
         notes: userItem.notes || null,
-        // No grnLineItemId for Warehouse → Storefront transfers
       });
     } else if (transferSourceType === "Storefront") {
       const storefrontStock = await StorefrontInventory.findOne({
         inventoryId: inventoryIdValue,
         storefrontId: sourceId,
-        batchNumber: userItem.batchNumber || "__LEGACY__",
       }).lean();
 
       if (!storefrontStock) {
         return next(
           new CustomError(
             404,
-            `Storefront stock not found for product '${userItem.productCode}' with batch '${userItem.batchNumber || "__LEGACY__"}' in source storefront`
+            `Storefront stock not found for product '${userItem.productCode}' in source storefront`
           )
         );
       }
@@ -501,7 +492,7 @@ export const createTransfer = asyncErrorHandler(async (req, res, next) => {
         return next(
           new CustomError(
             400,
-            `Transfer quantity (${userItem.quantity}) exceeds available storefront stock (${availableQuantity}) for product '${userItem.productCode}' with batch '${userItem.batchNumber || "__LEGACY__"}'`
+            `Transfer quantity (${userItem.quantity}) exceeds available storefront stock (${availableQuantity}) for product '${userItem.productCode}'`
           )
         );
       }
@@ -510,9 +501,6 @@ export const createTransfer = asyncErrorHandler(async (req, res, next) => {
       validatedLineItems.push({
         inventoryId: inventoryIdValue,
         quantity: userItem.quantity,
-        batchNumber: userItem.batchNumber || storefrontStock.batchNumber || "__LEGACY__",
-        expiryDate: userItem.expiryDate || storefrontStock.expiryDate || null,
-        manufacturingDate: userItem.manufacturingDate || storefrontStock.manufacturingDate || null,
         notes: userItem.notes || null,
       });
     }
@@ -526,7 +514,6 @@ export const createTransfer = asyncErrorHandler(async (req, res, next) => {
         const existingWarehouseStock = await WarehouseStock.findOne({
           inventoryId: lineItem.inventoryId,
           warehouseId: destinationId,
-          batchNumber: lineItem.batchNumber || "__LEGACY__",
         });
 
         if (!existingWarehouseStock) {
@@ -535,9 +522,6 @@ export const createTransfer = asyncErrorHandler(async (req, res, next) => {
             await WarehouseStock.create({
               inventoryId: lineItem.inventoryId,
               warehouseId: destinationId,
-              batchNumber: lineItem.batchNumber || "__LEGACY__",
-              expiryDate: lineItem.expiryDate || null,
-              manufacturingDate: lineItem.manufacturingDate || null,
               quantity: 0,
             });
           } catch (error) {
@@ -556,7 +540,6 @@ export const createTransfer = asyncErrorHandler(async (req, res, next) => {
         const existingStorefrontInventory = await StorefrontInventory.findOne({
           inventoryId: lineItem.inventoryId,
           storefrontId: destinationId,
-          batchNumber: lineItem.batchNumber || "__LEGACY__",
         });
 
         if (!existingStorefrontInventory) {
@@ -564,9 +547,6 @@ export const createTransfer = asyncErrorHandler(async (req, res, next) => {
             await StorefrontInventory.create({
               inventoryId: lineItem.inventoryId,
               storefrontId: destinationId,
-              batchNumber: lineItem.batchNumber || "__LEGACY__",
-              expiryDate: lineItem.expiryDate || null,
-              manufacturingDate: lineItem.manufacturingDate || null,
               quantity: 0,
             });
           } catch (error) {

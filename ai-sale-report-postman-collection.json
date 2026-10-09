@@ -1,7 +1,7 @@
 {
   "info": {
     "_postman_id": "b18f7734-7a32-472e-835c-cd7e2b10a2ab",
-    "name": "AutoShop POS AI Sales Report Tools",
+    "name": "Devi House POS AI Sales Report Tools",
     "description": "API endpoints wrapping the sales analytics database tools utilized by the AI Sales Assistant.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },

@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "Auto Shop POS API",
-    "description": "Complete API collection for Auto Shop POS (Car Showroom / Warehouse / Supplier POS system).\n\n## Authentication\n- Call **POST /api/v1/admin/login** with valid credentials to get a token.\n- Token is automatically saved to the `token` environment variable via the login test script.\n- All protected routes use `Bearer {{token}}` in the Authorization header.\n\n## Permissions\n- `owner` — full access to everything\n- `admin` — most CRUD operations\n- `cashier` — limited to order creation, reading inventory, sales reports\n\n## Environment Variables\n- `baseUrl` — API base URL (default: http://localhost:5000)",
+    "name": "DeviHouse API",
+    "description": "Complete API collection for Devi House POS (Warehouse / Supplier POS system).\n\n## Authentication\n- Call **POST /api/v1/admin/login** with valid credentials to get a token.\n- Token is automatically saved to the `token` environment variable via the login test script.\n- All protected routes use `Bearer {{token}}` in the Authorization header.\n\n## Permissions\n- `owner` — full access to everything\n- `admin` — most CRUD operations\n- `cashier` — limited to order creation, reading inventory, sales reports\n\n## Environment Variables\n- `baseUrl` — API base URL (default: http://localhost:5000)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -14,8 +14,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -23,8 +29,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/admin/signup",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "admin", "signup"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "signup"
+              ]
             },
             "description": "Create a new admin account. Requires owner or admin role."
           },
@@ -34,15 +47,27 @@
           "name": "Login",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"owner_user\",\n  \"password\": \"password123\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/admin/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "admin", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "login"
+              ]
             },
             "description": "Login with name and password. Saves JWT token to `token` environment variable."
           },
@@ -68,11 +93,22 @@
           "name": "Get All Accounts",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/admin",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "admin"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin"
+              ]
             },
             "description": "Get all admin accounts. Requires owner or admin role."
           },
@@ -82,11 +118,23 @@
           "name": "Get Account By ID",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/admin/:accountId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "admin", ":accountId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                ":accountId"
+              ],
               "variable": [
                 {
                   "key": "accountId",
@@ -104,8 +152,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -113,8 +167,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/admin/:accountId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "admin", ":accountId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                ":accountId"
+              ],
               "variable": [
                 {
                   "key": "accountId",
@@ -132,8 +193,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -141,8 +208,16 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/admin/update-password/:accountId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "admin", "update-password", ":accountId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "update-password",
+                ":accountId"
+              ],
               "variable": [
                 {
                   "key": "accountId",
@@ -159,11 +234,24 @@
           "name": "Soft Delete",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/admin/soft-delete/:accountId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "admin", "soft-delete", ":accountId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "soft-delete",
+                ":accountId"
+              ],
               "variable": [
                 {
                   "key": "accountId",
@@ -180,11 +268,24 @@
           "name": "Restore Account",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/admin/restore/:accountId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "admin", "restore", ":accountId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "restore",
+                ":accountId"
+              ],
               "variable": [
                 {
                   "key": "accountId",
@@ -201,11 +302,23 @@
           "name": "Delete Account (Hard)",
           "request": {
             "method": "DELETE",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/admin/:accountId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "admin", ":accountId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                ":accountId"
+              ],
               "variable": [
                 {
                   "key": "accountId",
@@ -229,8 +342,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -238,8 +357,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/warehouse-profile",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "warehouse-profile"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "warehouse-profile"
+              ]
             },
             "description": "Create a new warehouse profile. Type is auto-set to 'warehouse'."
           },
@@ -249,11 +374,22 @@
           "name": "Get All Warehouse Profiles",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/warehouse-profile",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "warehouse-profile"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "warehouse-profile"
+              ]
             },
             "description": "Get all warehouse profiles."
           },
@@ -263,11 +399,23 @@
           "name": "Get Warehouse Profile By ID",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/warehouse-profile/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "warehouse-profile", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "warehouse-profile",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -285,8 +433,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -294,8 +448,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/warehouse-profile/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "warehouse-profile", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "warehouse-profile",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -319,8 +480,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -328,8 +495,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/storefront-profile",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "storefront-profile"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "storefront-profile"
+              ]
             },
             "description": "Create a new storefront profile. Type is auto-set to 'storefront'."
           },
@@ -339,11 +512,22 @@
           "name": "Get All Storefront Profiles",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/storefront-profile",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "storefront-profile"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "storefront-profile"
+              ]
             },
             "description": "Get all storefront profiles."
           },
@@ -353,11 +537,23 @@
           "name": "Get Storefront Profile By ID",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/storefront-profile/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "storefront-profile", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "storefront-profile",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -375,8 +571,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -384,8 +586,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/storefront-profile/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "storefront-profile", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "storefront-profile",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -408,11 +617,22 @@
           "name": "Get All Location Profiles",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/location-profile",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "location-profile"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "location-profile"
+              ]
             },
             "description": "Get all location profiles (both warehouse and storefront types)."
           },
@@ -422,11 +642,23 @@
           "name": "Get Location Profile By ID",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/location-profile/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "location-profile", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "location-profile",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -450,8 +682,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -459,8 +697,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/inventory",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "inventory"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory"
+              ]
             },
             "description": "Create a new inventory product. Requires owner or admin role."
           },
@@ -470,11 +714,22 @@
           "name": "Get All Inventory",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/inventory",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "inventory"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory"
+              ]
             },
             "description": "Get all inventory products. Supports query parameters for filtering."
           },
@@ -484,11 +739,23 @@
           "name": "Get Inventory By ID",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/inventory/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "inventory", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -506,8 +773,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -515,8 +788,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/inventory/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "inventory", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -533,7 +813,12 @@
           "name": "Import Inventory from Excel",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "body": {
               "mode": "formdata",
               "formdata": [
@@ -547,8 +832,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/inventory/import-excel",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "inventory", "import-excel"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory",
+                "import-excel"
+              ]
             },
             "description": "Bulk import inventory from an Excel/CSV file. Requires owner or admin role."
           },
@@ -558,11 +850,23 @@
           "name": "Get All Categories",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/inventory/categories",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "inventory", "categories"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory",
+                "categories"
+              ]
             },
             "description": "Get all unique product categories."
           },
@@ -579,8 +883,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -588,8 +898,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/supplier-profile",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "supplier-profile"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "supplier-profile"
+              ]
             },
             "description": "Create a new supplier profile. Requires owner or admin role."
           },
@@ -599,11 +915,22 @@
           "name": "Get All Suppliers",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/supplier-profile",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "supplier-profile"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "supplier-profile"
+              ]
             },
             "description": "Get all supplier profiles."
           },
@@ -613,11 +940,23 @@
           "name": "Get Supplier By ID",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/supplier-profile/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "supplier-profile", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "supplier-profile",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -635,8 +974,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -644,8 +989,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/supplier-profile/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "supplier-profile", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "supplier-profile",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -662,11 +1014,24 @@
           "name": "Soft Delete Supplier",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/supplier-profile/:id/soft-delete",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "supplier-profile", ":id", "soft-delete"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "supplier-profile",
+                ":id",
+                "soft-delete"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -683,11 +1048,24 @@
           "name": "Restore Supplier",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/supplier-profile/:id/restore",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "supplier-profile", ":id", "restore"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "supplier-profile",
+                ":id",
+                "restore"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -704,11 +1082,23 @@
           "name": "Delete Supplier (Hard)",
           "request": {
             "method": "DELETE",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/supplier-profile/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "supplier-profile", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "supplier-profile",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -732,8 +1122,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -741,8 +1137,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/purchase",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "purchase"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "purchase"
+              ]
             },
             "description": "Create a new purchase order. PO number is auto-generated."
           },
@@ -752,11 +1154,22 @@
           "name": "Get All Purchase Orders",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/purchase",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "purchase"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "purchase"
+              ]
             },
             "description": "Get all purchase orders."
           },
@@ -766,11 +1179,23 @@
           "name": "Get Purchase Order By ID",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/purchase/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "purchase", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "purchase",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -788,8 +1213,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -797,8 +1228,16 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/purchase/:id/status",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "purchase", ":id", "status"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "purchase",
+                ":id",
+                "status"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -815,11 +1254,24 @@
           "name": "Soft Delete Purchase",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/purchase/:id/soft-delete",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "purchase", ":id", "soft-delete"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "purchase",
+                ":id",
+                "soft-delete"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -836,11 +1288,24 @@
           "name": "Restore Purchase",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/purchase/:id/restore",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "purchase", ":id", "restore"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "purchase",
+                ":id",
+                "restore"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -864,8 +1329,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -873,8 +1344,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/grn",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "grn"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "grn"
+              ]
             },
             "description": "Create a new Goods Received Note. GRN number is auto-generated."
           },
@@ -884,11 +1361,22 @@
           "name": "Get All GRNs",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/grn",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "grn"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "grn"
+              ]
             },
             "description": "Get all Goods Received Notes."
           },
@@ -898,11 +1386,23 @@
           "name": "Get GRN By ID",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/grn/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "grn", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "grn",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -920,8 +1420,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -929,8 +1435,16 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/grn/:id/status",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "grn", ":id", "status"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "grn",
+                ":id",
+                "status"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -948,8 +1462,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -957,8 +1477,16 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/grn/:id/line-items",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "grn", ":id", "line-items"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "grn",
+                ":id",
+                "line-items"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -982,8 +1510,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -991,8 +1525,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/warehouse",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "warehouse"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "warehouse"
+              ]
             },
             "description": "Create a new warehouse stock record. Requires owner or admin role."
           },
@@ -1002,11 +1542,22 @@
           "name": "Get All Warehouse Stock",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/warehouse",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "warehouse"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "warehouse"
+              ]
             },
             "description": "Get all warehouse stock records."
           },
@@ -1016,11 +1567,23 @@
           "name": "Get Warehouse Stock By ID",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/warehouse/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "warehouse", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "warehouse",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -1038,8 +1601,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1047,8 +1616,16 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/warehouse/:id/quantity",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "warehouse", ":id", "quantity"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "warehouse",
+                ":id",
+                "quantity"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -1072,8 +1649,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1081,8 +1664,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/storefront-inventory",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "storefront-inventory"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "storefront-inventory"
+              ]
             },
             "description": "Create a new storefront inventory record. Requires owner or admin role."
           },
@@ -1092,11 +1681,22 @@
           "name": "Get All Storefront Inventory",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/storefront-inventory",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "storefront-inventory"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "storefront-inventory"
+              ]
             },
             "description": "Get all storefront inventory records (with filtering, pagination, sorting)."
           },
@@ -1106,11 +1706,23 @@
           "name": "Get Storefront Inventory By ID",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/storefront-inventory/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "storefront-inventory", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "storefront-inventory",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -1128,8 +1740,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1137,8 +1755,16 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/storefront-inventory/:id/quantity",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "storefront-inventory", ":id", "quantity"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "storefront-inventory",
+                ":id",
+                "quantity"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -1162,8 +1788,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1171,8 +1803,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/transfer",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "transfer"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transfer"
+              ]
             },
             "description": "Create a new stock transfer. Transfer number is auto-generated."
           },
@@ -1182,11 +1820,22 @@
           "name": "Get All Transfers",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/transfer",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "transfer"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transfer"
+              ]
             },
             "description": "Get all stock transfers."
           },
@@ -1196,11 +1845,23 @@
           "name": "Get Transfer By ID",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/transfer/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "transfer", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transfer",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -1218,8 +1879,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1227,8 +1894,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/transfer/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "transfer", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transfer",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -1252,8 +1926,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1261,8 +1941,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/order",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "order"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "order"
+              ]
             },
             "description": "Create a new sales order. Order number is auto-generated."
           },
@@ -1272,11 +1958,22 @@
           "name": "Get All Orders",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/order",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "order"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "order"
+              ]
             },
             "description": "Get all orders."
           },
@@ -1286,11 +1983,23 @@
           "name": "Get Order By ID",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/order/:orderId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "order", ":orderId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "order",
+                ":orderId"
+              ],
               "variable": [
                 {
                   "key": "orderId",
@@ -1307,11 +2016,24 @@
           "name": "Get Orders By Storefront",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/order/storefront/:storefrontId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "order", "storefront", ":storefrontId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "order",
+                "storefront",
+                ":storefrontId"
+              ],
               "variable": [
                 {
                   "key": "storefrontId",
@@ -1329,8 +2051,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1338,8 +2066,16 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/order/:orderId/credit-person",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "order", ":orderId", "credit-person"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "order",
+                ":orderId",
+                "credit-person"
+              ],
               "variable": [
                 {
                   "key": "orderId",
@@ -1357,8 +2093,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1366,8 +2108,16 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/order/:orderId/paid-amount",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "order", ":orderId", "paid-amount"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "order",
+                ":orderId",
+                "paid-amount"
+              ],
               "variable": [
                 {
                   "key": "orderId",
@@ -1385,8 +2135,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1394,8 +2150,17 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/order/:orderId/items/add",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "order", ":orderId", "items", "add"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "order",
+                ":orderId",
+                "items",
+                "add"
+              ],
               "variable": [
                 {
                   "key": "orderId",
@@ -1413,8 +2178,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1422,8 +2193,17 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/order/:orderId/items/remove",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "order", ":orderId", "items", "remove"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "order",
+                ":orderId",
+                "items",
+                "remove"
+              ],
               "variable": [
                 {
                   "key": "orderId",
@@ -1440,11 +2220,23 @@
           "name": "Delete Order (Hard)",
           "request": {
             "method": "DELETE",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/order/:orderId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "order", ":orderId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "order",
+                ":orderId"
+              ],
               "variable": [
                 {
                   "key": "orderId",
@@ -1468,8 +2260,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1477,8 +2275,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/credit-persona",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "credit-persona"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "credit-persona"
+              ]
             },
             "description": "Create a new credit person (customer who can buy on credit)."
           },
@@ -1488,11 +2292,22 @@
           "name": "Get All Credit Persons",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/credit-persona",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "credit-persona"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "credit-persona"
+              ]
             },
             "description": "Get all credit persons."
           },
@@ -1502,11 +2317,23 @@
           "name": "Get Credit Person By ID",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/credit-persona/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "credit-persona", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "credit-persona",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -1524,8 +2351,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1533,8 +2366,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/credit-persona/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "credit-persona", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "credit-persona",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -1558,8 +2398,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1567,8 +2413,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/credit-record",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "credit-record"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "credit-record"
+              ]
             },
             "description": "Create a credit payment record for an order."
           },
@@ -1578,11 +2430,22 @@
           "name": "Get All Credit Records",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/credit-record",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "credit-record"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "credit-record"
+              ]
             },
             "description": "Get all credit records (with optional filtering)."
           },
@@ -1592,11 +2455,23 @@
           "name": "Get Credit Record By ID",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/credit-record/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "credit-record", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "credit-record",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -1613,11 +2488,24 @@
           "name": "Get Credit Records By Order",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/order/:orderId/credit-records",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "order", ":orderId", "credit-records"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "order",
+                ":orderId",
+                "credit-records"
+              ],
               "variable": [
                 {
                   "key": "orderId",
@@ -1634,10 +2522,17 @@
           "name": "Get Credit Records By Credit Person",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/credit-persona/:creditPersonId/credit-records",
-              "host": ["{{baseUrl}}"],
+              "host": [
+                "{{baseUrl}}"
+              ],
               "path": [
                 "api",
                 "v1",
@@ -1661,11 +2556,23 @@
           "name": "Delete Credit Record (Hard)",
           "request": {
             "method": "DELETE",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/credit-record/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "credit-record", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "credit-record",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -1689,8 +2596,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1698,8 +2611,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/expense",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "expense"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "expense"
+              ]
             },
             "description": "Create a new expense record."
           },
@@ -1709,11 +2628,22 @@
           "name": "Get All Expenses",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/expense",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "expense"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "expense"
+              ]
             },
             "description": "Get all expense records."
           },
@@ -1723,11 +2653,23 @@
           "name": "Get Expense By ID",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/expense/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "expense", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "expense",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -1745,8 +2687,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1754,8 +2702,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/expense/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "expense", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "expense",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -1772,11 +2727,24 @@
           "name": "Soft Delete Expense",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/expense/:id/soft-delete",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "expense", ":id", "soft-delete"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "expense",
+                ":id",
+                "soft-delete"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -1793,11 +2761,24 @@
           "name": "Restore Expense",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/expense/:id/restore",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "expense", ":id", "restore"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "expense",
+                ":id",
+                "restore"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -1814,11 +2795,23 @@
           "name": "Delete Expense (Hard)",
           "request": {
             "method": "DELETE",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/expense/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "expense", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "expense",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",
@@ -1841,11 +2834,22 @@
           "name": "Get Sale Report",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/sale-report?storefrontId=<storefront_object_id>",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "sale-report"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sale-report"
+              ],
               "query": [
                 {
                   "key": "storefrontId",
@@ -1862,11 +2866,23 @@
           "name": "Get Paid Orders Report",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/sale-report/paid-orders?storefrontId=<storefront_object_id>",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "sale-report", "paid-orders"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sale-report",
+                "paid-orders"
+              ],
               "query": [
                 {
                   "key": "storefrontId",
@@ -1883,11 +2899,23 @@
           "name": "Get Credit Orders Report",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/sale-report/credit-orders?storefrontId=<storefront_object_id>",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "sale-report", "credit-orders"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sale-report",
+                "credit-orders"
+              ],
               "query": [
                 {
                   "key": "storefrontId",
@@ -1904,11 +2932,23 @@
           "name": "Get Product Sales Report",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/sale-report/products?storefrontId=<storefront_object_id>",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "sale-report", "products"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sale-report",
+                "products"
+              ],
               "query": [
                 {
                   "key": "storefrontId",
@@ -1925,11 +2965,23 @@
           "name": "Get Credit Persona Product Report",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/sale-report/credit-persona-products",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "sale-report", "credit-persona-products"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sale-report",
+                "credit-persona-products"
+              ]
             },
             "description": "Get credit persona product report."
           },
@@ -1939,11 +2991,23 @@
           "name": "Get Products By Credit Person",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/sale-report/products-by-credit-person?storefrontId=<storefront_object_id>&inventoryId=<inventory_object_id>",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "sale-report", "products-by-credit-person"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sale-report",
+                "products-by-credit-person"
+              ],
               "query": [
                 {
                   "key": "storefrontId",
@@ -1972,8 +3036,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1981,8 +3051,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/shop-settings",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "shop-settings"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shop-settings"
+              ]
             },
             "description": "Create or update shop settings."
           },
@@ -1992,7 +3068,12 @@
           "name": "Upload Shop Logo",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "body": {
               "mode": "formdata",
               "formdata": [
@@ -2006,8 +3087,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/shop-settings/logo",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "shop-settings", "logo"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shop-settings",
+                "logo"
+              ]
             },
             "description": "Upload shop logo image."
           },
@@ -2020,8 +3108,14 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/shop-settings",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "shop-settings"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shop-settings"
+              ]
             },
             "description": "Get current active shop settings (publicly accessible, no auth required)."
           },
@@ -2031,11 +3125,23 @@
           "name": "Delete Shop Logo",
           "request": {
             "method": "DELETE",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/shop-settings/logo",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "shop-settings", "logo"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shop-settings",
+                "logo"
+              ]
             },
             "description": "Delete shop logo."
           },
@@ -2045,11 +3151,23 @@
           "name": "Get Shop Settings History",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/shop-settings/history",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "shop-settings", "history"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shop-settings",
+                "history"
+              ]
             },
             "description": "Get all shop settings records for audit trail."
           },
@@ -2065,11 +3183,22 @@
           "name": "Get All Stock Audit Logs",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/stock-audit-logs",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "stock-audit-logs"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "stock-audit-logs"
+              ]
             },
             "description": "Get all stock audit log entries."
           },
@@ -2079,11 +3208,23 @@
           "name": "Get Stock Audit Log By ID",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/stock-audit-logs/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "stock-audit-logs", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "stock-audit-logs",
+                ":id"
+              ],
               "variable": [
                 {
                   "key": "id",

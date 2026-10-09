@@ -78,6 +78,10 @@ const locationProfileSchema = new mongoose.Schema(
       maxlength: [500, "Notes cannot exceed 500 characters"],
       default: "No notes available",
     },
+    isEcommerceDefault: {
+      type: Boolean,
+      default: false,
+    },
     isDeleted: {
       type: Boolean,
       default: false,
