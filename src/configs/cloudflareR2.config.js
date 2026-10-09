@@ -113,6 +113,9 @@ export const validateLogoFile = (file) => {
     throw new Error("File size too large. Maximum size is 5MB.");
   }
 
+  return true;
+};
+
 // Validate file type for slip upload
 export const validateSlipImage = (file) => {
   const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
