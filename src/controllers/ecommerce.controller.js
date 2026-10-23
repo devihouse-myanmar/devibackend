@@ -6,10 +6,22 @@ import LocationProfile from "../models/locationProfile.model.js";
 import ShopSetting from "../models/shopSetting.model.js";
 import { asyncErrorHandler } from "../utils/asyncErrorHandler.js";
 import CustomError from "../utils/customError.js";
+import { formatPhoneNumber } from "../utils/phoneValidation.utils.js";
 import {
   uploadToR2,
   generateR2Key,
 } from "../configs/cloudflareR2.config.js";
+
+// Phones are stored as typed at checkout, so compare in E.164 when parseable, else digits-only
+const normalizePhoneForMatch = (phone) =>
+  formatPhoneNumber(phone) || String(phone || "").replace(/\D/g, "");
+
+// Keep first 2 and last 3 digits visible, e.g. 09*****123
+const maskPhone = (phone) => {
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (digits.length <= 5) return "*".repeat(digits.length);
+  return `${digits.slice(0, 2)}${"*".repeat(digits.length - 5)}${digits.slice(-3)}`;
+};
 
 // Helper to find or automatically create Ecommerce Storefront
 export const getOrCreateEcommerceStorefront = async () => {
@@ -313,13 +325,16 @@ export const createEcommerceOrder = asyncErrorHandler(
   },
 );
 
-// 2. Track E-commerce Order by Order Number (Public Tokenless)
+// 2. Track E-commerce Order by Order Number + Phone (Public Tokenless)
 export const getEcommerceOrderTrack = asyncErrorHandler(
   async (req, res, next) => {
-    const { orderNumber } = req.params;
+    const { orderNumber, phone } = req.body || {};
 
-    if (!orderNumber) {
+    if (typeof orderNumber !== "string" || !orderNumber.trim()) {
       return next(new CustomError(400, "Order number is required"));
+    }
+    if (typeof phone !== "string" || !phone.trim()) {
+      return next(new CustomError(400, "Phone number is required"));
     }
 
     const order = await Order.findOne({
@@ -331,8 +346,16 @@ export const getEcommerceOrderTrack = asyncErrorHandler(
       select: "productName productCode color size category images sellingPrice",
     });
 
-    if (!order) {
-      return next(new CustomError(404, "Order not found with the provided order number"));
+    // Same response for unknown order and wrong phone, so order numbers can't be probed
+    const providedPhone = normalizePhoneForMatch(phone);
+    if (
+      !order ||
+      !providedPhone ||
+      normalizePhoneForMatch(order.customerInfo?.phone) !== providedPhone
+    ) {
+      return next(
+        new CustomError(404, "Order not found with the provided order number and phone"),
+      );
     }
 
     res.status(200).json({
@@ -342,16 +365,18 @@ export const getEcommerceOrderTrack = asyncErrorHandler(
         orderStatus: order.orderStatus,
         customerInfo: {
           name: order.customerInfo?.name,
-          phone: order.customerInfo?.phone,
+          phone: maskPhone(order.customerInfo?.phone),
           township: order.customerInfo?.township,
           city: order.customerInfo?.city,
         },
-        deliveryInfo: order.deliveryInfo,
+        deliveryInfo: {
+          deliMethod: order.deliveryInfo?.deliMethod,
+          gateName: order.deliveryInfo?.gateName,
+        },
         paymentInfo: {
           paymentMethod: order.paymentInfo?.paymentMethod,
           paymentProvider: order.paymentInfo?.paymentProvider,
           paymentStatus: order.paymentInfo?.paymentStatus,
-          paymentScreenshot: order.paymentInfo?.paymentScreenshot,
         },
         items: order.ordersProducts.map((p) => ({
           productName: p.inventoryId?.productName,

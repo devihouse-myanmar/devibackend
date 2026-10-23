@@ -1,5 +1,6 @@
 import express from "express";
 import uploadPaymentScreenshot from "../middlewares/multerSlipUpload.middleware.js";
+import trackOrderRateLimiter from "../middlewares/trackOrderRateLimiter.middleware.js";
 import {
   createEcommerceOrder,
   getEcommerceOrderTrack,
@@ -25,8 +26,9 @@ router.post(
   createEcommerceOrder,
 );
 
-// 4. Track E-commerce Order by Order Number (e.g. ECO-2026-10-02-000001)
-router.get("/ecommerce/orders/track/:orderNumber", getEcommerceOrderTrack);
+// 4. Track E-commerce Order by Order Number + Phone in JSON body
+// (POST keeps the phone out of URLs and logs)
+router.post("/ecommerce/orders/track", trackOrderRateLimiter, getEcommerceOrderTrack);
 
 // 5. Get E-commerce Store Info & Supported Payment Providers
 router.get("/ecommerce/store-info", getEcommerceStoreInfo);
