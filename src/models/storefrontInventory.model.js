@@ -27,6 +27,52 @@ const storefrontInventorySchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    discount: {
+      type: {
+        type: String,
+        enum: {
+          values: ["percentage", "fixed"],
+          message: "Discount type must be percentage or fixed",
+        },
+        default: "percentage",
+      },
+      value: {
+        type: Number,
+        min: [0, "Discount value cannot be negative"],
+        default: 0,
+        validate: {
+          validator: function (val) {
+            const discType = this?.discount?.type || this?.type;
+            if (discType === "percentage" && val > 100) {
+              return false;
+            }
+            return true;
+          },
+          message: "Percentage discount cannot exceed 100%",
+        },
+      },
+      startDate: { type: Date, default: null },
+      endDate: {
+        type: Date,
+        default: null,
+        validate: {
+          validator: function (val) {
+            const start = this?.discount?.startDate || this?.startDate;
+            if (val && start && new Date(val) < new Date(start)) {
+              return false;
+            }
+            return true;
+          },
+          message: "Discount end date cannot be earlier than start date",
+        },
+      },
+      isActive: { type: Boolean, default: false },
+      updatedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Admin",
+        default: null,
+      },
+    },
   },
   {
     timestamps: true,
@@ -46,6 +92,7 @@ storefrontInventorySchema.index(
 storefrontInventorySchema.index({ storefrontId: 1 });
 storefrontInventorySchema.index({ inventoryId: 1 });
 storefrontInventorySchema.index({ storefrontId: 1, isLowStock: 1 }); // For low stock queries per storefront
+storefrontInventorySchema.index({ storefrontId: 1, "discount.isActive": 1 });
 storefrontInventorySchema.index({ quantity: 1 }); // For sorting by quantity
 
 // Virtual for available quantity (same as quantity since we don't track reservations here)

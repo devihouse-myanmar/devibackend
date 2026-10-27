@@ -4,9 +4,11 @@ import Inventory from "../models/inventory.model.js";
 import StorefrontInventory from "../models/storefrontInventory.model.js";
 import LocationProfile from "../models/locationProfile.model.js";
 import ShopSetting from "../models/shopSetting.model.js";
+import CreditPerson from "../models/creditPersona.model.js";
 import { asyncErrorHandler } from "../utils/asyncErrorHandler.js";
 import CustomError from "../utils/customError.js";
 import { formatPhoneNumber } from "../utils/phoneValidation.utils.js";
+import { resolveUnitPrice } from "../utils/pricing.utils.js";
 import {
   uploadToR2,
   generateR2Key,
@@ -236,7 +238,14 @@ export const createEcommerceOrder = asyncErrorHandler(
         );
       }
 
-      const unitPrice = product.sellingPrice;
+      const pricing = resolveUnitPrice({
+        inventory: product,
+        stockRecord: storeStock,
+        quantity,
+        applyWholesale: false,
+      });
+
+      const unitPrice = pricing.unitPrice;
       const lineSubTotal = unitPrice * quantity;
       subTotal += lineSubTotal;
 
@@ -244,6 +253,8 @@ export const createEcommerceOrder = asyncErrorHandler(
         inventoryId: product._id,
         quantity,
         unitPrice,
+        originalUnitPrice: pricing.originalUnitPrice,
+        itemDiscount: pricing.itemDiscount,
         buyingPrice: product.buyingPrice || null,
       });
     }
@@ -259,6 +270,53 @@ export const createEcommerceOrder = asyncErrorHandler(
       );
     }
 
+    // Find or Auto-Create CreditPerson profile for unified customer management
+    let creditPersonId = null;
+    try {
+      const customerPhone = phone.trim();
+      const customerName = name.trim();
+      const customerAddress = [
+        address.trim(),
+        township.trim(),
+        city && city.trim(),
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      const normalizedPhone = normalizePhoneForMatch(customerPhone);
+      const rawDigits = customerPhone.replace(/\D/g, "");
+
+      const phoneConditions = [{ phone: customerPhone }];
+      if (normalizedPhone && normalizedPhone !== customerPhone) {
+        phoneConditions.push({ phone: normalizedPhone });
+      }
+      if (rawDigits.length >= 7) {
+        phoneConditions.push({ phone: { $regex: rawDigits.slice(-7) + "$" } });
+      }
+
+      let creditPerson = await CreditPerson.findOne({ $or: phoneConditions });
+
+      if (!creditPerson) {
+        creditPerson = await CreditPerson.create({
+          name: customerName,
+          phone: customerPhone,
+          address: customerAddress,
+        });
+      } else {
+        // If profile exists but address was empty, update it with delivery address
+        if (!creditPerson.address && customerAddress) {
+          creditPerson.address = customerAddress;
+          await creditPerson.save();
+        }
+      }
+      creditPersonId = creditPerson._id;
+    } catch (cpErr) {
+      console.error(
+        "[EcommerceOrder] Failed to find or auto-create credit persona:",
+        cpErr,
+      );
+    }
+
     // Generate Ecommerce Order Number (ECO-YYYY-MM-DD-NNNNNN)
     const orderNumber = await Order.generateOrderNumber(new Date(), "ECO");
 
@@ -268,6 +326,7 @@ export const createEcommerceOrder = asyncErrorHandler(
       orderSource: "ecommerce",
       storefrontId: ecommerceStore._id,
       ordersProducts,
+      creditPersonId,
       subTotal,
       tax: 0,
       discount: 0,
@@ -300,10 +359,13 @@ export const createEcommerceOrder = asyncErrorHandler(
     });
 
     // Populate order products for the response
-    const populatedOrder = await Order.findById(newOrder._id).populate({
-      path: "ordersProducts.inventoryId",
-      select: "productName productCode color size category images sellingPrice",
-    });
+    const populatedOrder = await Order.findById(newOrder._id)
+      .populate({
+        path: "ordersProducts.inventoryId",
+        select:
+          "productName productCode color size category images sellingPrice",
+      })
+      .populate("creditPersonId", "name phone address blacklist blacklistReason");
 
     res.status(201).json({
       status: "success",
@@ -385,6 +447,8 @@ export const getEcommerceOrderTrack = asyncErrorHandler(
           size: p.inventoryId?.size,
           quantity: p.quantity,
           unitPrice: p.unitPrice,
+          originalUnitPrice: p.originalUnitPrice || p.unitPrice,
+          itemDiscount: p.itemDiscount || null,
           image: p.inventoryId?.images?.[0]?.url || null,
         })),
         subTotal: order.subTotal,
@@ -520,6 +584,7 @@ export const getEcommerceProducts = asyncErrorHandler(
                 sellingPrice: "$inventoryDoc.sellingPrice",
                 image: { $arrayElemAt: ["$inventoryDoc.images.url", 0] },
                 availableStock: "$quantity",
+                discount: "$discount",
               },
             },
             createdAt: { $max: "$inventoryDoc.createdAt" },
@@ -539,13 +604,69 @@ export const getEcommerceProducts = asyncErrorHandler(
 
       const [result] = await StorefrontInventory.aggregate(pipeline);
       const totalCount = result?.metadata?.[0]?.total || 0;
-      const paginatedDesigns = (result?.data || []).map((d) => ({
-        ...d,
-        _id: d.representativeId,
-        id: d.representativeId,
-        inventoryId: d.representativeId,
-        image: d.image || d.images?.[0]?.url || "",
-      }));
+      const now = new Date();
+
+      const paginatedDesigns = (result?.data || []).map((d) => {
+        let hasAnyDiscount = false;
+        let minDiscountedPrice = Infinity;
+        let repOriginalPrice = d.sellingPrice;
+        let repDiscountLabel = null;
+
+        const processedVariants = (d.variants || []).map((v) => {
+          const originalPrice = Number(v.sellingPrice) || 0;
+          const pricing = resolveUnitPrice({
+            inventory: { sellingPrice: originalPrice },
+            stockRecord: { discount: v.discount },
+            quantity: 1,
+            now,
+            applyWholesale: false,
+          });
+
+          const discountedPrice = pricing.unitPrice;
+          let discountLabel = null;
+          if (pricing.priceSource === "discount" && pricing.itemDiscount) {
+            hasAnyDiscount = true;
+            if (pricing.itemDiscount.type === "percentage") {
+  discountLabel = `-${pricing.itemDiscount.value}%`;
+} else {
+  const pct = originalPrice > 0 ? Math.round((pricing.itemDiscount.amount / originalPrice) * 100) : 0;
+  discountLabel = pct > 0 ? `-${pct}%` : `-${pricing.itemDiscount.amount.toLocaleString()} MMK`;
+}
+          }
+
+          if (discountedPrice < minDiscountedPrice) {
+            minDiscountedPrice = discountedPrice;
+            repOriginalPrice = originalPrice;
+            repDiscountLabel = discountLabel;
+          }
+
+          const { discount: _rawDiscount, ...cleanVariant } = v;
+          return {
+            ...cleanVariant,
+            originalPrice,
+            price: discountedPrice,
+            sellingPrice: discountedPrice,
+            discountLabel,
+          };
+        });
+
+        const finalSellingPrice =
+          minDiscountedPrice !== Infinity ? minDiscountedPrice : d.sellingPrice;
+
+        return {
+          ...d,
+          _id: d.representativeId,
+          id: d.representativeId,
+          inventoryId: d.representativeId,
+          image: d.image || d.images?.[0]?.url || "",
+          originalPrice: repOriginalPrice,
+          price: finalSellingPrice,
+          sellingPrice: finalSellingPrice,
+          hasDiscount: hasAnyDiscount,
+          discountLabel: repDiscountLabel,
+          variants: processedVariants,
+        };
+      });
 
       return res.status(200).json({
         status: "success",
@@ -574,6 +695,7 @@ export const getEcommerceProducts = asyncErrorHandler(
           description: "$inventoryDoc.description",
           sellingPrice: "$inventoryDoc.sellingPrice",
           unitOfMeasure: "$inventoryDoc.unitOfMeasure",
+          discount: "$discount",
           availableStock: "$quantity",
           createdAt: "$inventoryDoc.createdAt",
         },
@@ -592,7 +714,41 @@ export const getEcommerceProducts = asyncErrorHandler(
 
     const [flatResult] = await StorefrontInventory.aggregate(pipeline);
     const totalCount = flatResult?.metadata?.[0]?.total || 0;
-    const paginatedProducts = flatResult?.data || [];
+    const nowFlat = new Date();
+
+    const paginatedProducts = (flatResult?.data || []).map((item) => {
+      const originalPrice = Number(item.sellingPrice) || 0;
+      const pricing = resolveUnitPrice({
+        inventory: { sellingPrice: originalPrice },
+        stockRecord: { discount: item.discount },
+        quantity: 1,
+        now: nowFlat,
+        applyWholesale: false,
+      });
+
+      const discountedPrice = pricing.unitPrice;
+      let discountLabel = null;
+      let hasDiscount = false;
+      if (pricing.priceSource === "discount" && pricing.itemDiscount) {
+        hasDiscount = true;
+        if (pricing.itemDiscount.type === "percentage") {
+  discountLabel = `-${pricing.itemDiscount.value}%`;
+} else {
+  const pct = originalPrice > 0 ? Math.round((pricing.itemDiscount.amount / originalPrice) * 100) : 0;
+  discountLabel = pct > 0 ? `-${pct}%` : `-${pricing.itemDiscount.amount.toLocaleString()} MMK`;
+}
+      }
+
+      const { discount: _rawDiscount, ...cleanItem } = item;
+      return {
+        ...cleanItem,
+        originalPrice,
+        price: discountedPrice,
+        sellingPrice: discountedPrice,
+        discountLabel,
+        hasDiscount,
+      };
+    });
 
     res.status(200).json({
       status: "success",
@@ -655,27 +811,56 @@ export const getEcommerceProductById = asyncErrorHandler(
     }
 
     const stockMap = new Map();
+    const discountMap = new Map();
     for (const s of ecoStocks) {
       stockMap.set(s.inventoryId.toString(), s.quantity || 0);
+      discountMap.set(s.inventoryId.toString(), s.discount);
     }
 
+    const now = new Date();
     // Only include variants that exist in SF-ECOMMERCE with quantity > 0
     const availableVariants = categoryInventory
       .filter((item) => stockMap.has(item._id.toString()))
-      .map((s) => ({
-        _id: s._id,
-        id: s._id,
-        inventoryId: s._id,
-        productName: s.productName,
-        productCode: s.productCode,
-        color: s.color,
-        size: s.size,
-        price: s.sellingPrice,
-        sellingPrice: s.sellingPrice,
-        image: s.images?.[0]?.url || "",
-        images: s.images || [],
-        availableStock: stockMap.get(s._id.toString()) || 0,
-      }));
+      .map((s) => {
+        const originalPrice = Number(s.sellingPrice) || 0;
+        const discountObj = discountMap.get(s._id.toString());
+        const pricing = resolveUnitPrice({
+          inventory: { sellingPrice: originalPrice },
+          stockRecord: { discount: discountObj },
+          quantity: 1,
+          now,
+          applyWholesale: false,
+        });
+
+        const discountedPrice = pricing.unitPrice;
+        let discountLabel = null;
+        if (pricing.priceSource === "discount" && pricing.itemDiscount) {
+          if (pricing.itemDiscount.type === "percentage") {
+  discountLabel = `-${pricing.itemDiscount.value}%`;
+} else {
+  const pct = originalPrice > 0 ? Math.round((pricing.itemDiscount.amount / originalPrice) * 100) : 0;
+  discountLabel = pct > 0 ? `-${pct}%` : `-${pricing.itemDiscount.amount.toLocaleString()} MMK`;
+}
+        }
+
+        return {
+          _id: s._id,
+          id: s._id,
+          inventoryId: s._id,
+          productName: s.productName,
+          productCode: s.productCode,
+          color: s.color,
+          size: s.size,
+          originalPrice,
+          price: discountedPrice,
+          sellingPrice: discountedPrice,
+          discountLabel,
+          hasDiscount: pricing.priceSource === "discount",
+          image: s.images?.[0]?.url || "",
+          images: s.images || [],
+          availableStock: stockMap.get(s._id.toString()) || 0,
+        };
+      });
 
     if (availableVariants.length === 0) {
       return next(
@@ -720,7 +905,11 @@ export const getEcommerceProductById = asyncErrorHandler(
         sizes: uniqueSizes,
         images: fullActiveDoc.images || [],
         description: fullActiveDoc.description,
+        originalPrice: activeProduct.originalPrice,
+        price: activeProduct.price,
         sellingPrice: activeProduct.price,
+        discountLabel: activeProduct.discountLabel,
+        hasDiscount: activeProduct.hasDiscount,
         unitOfMeasure: fullActiveDoc.unitOfMeasure,
         availableStock: activeProduct.availableStock,
         variants: availableVariants,

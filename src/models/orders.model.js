@@ -21,6 +21,23 @@ const orderProductsSchema = new mongoose.Schema({
     min: [0, "Buying price cannot be negative"],
     default: null,
   },
+  originalUnitPrice: {
+    type: Number,
+    min: [0, "Original unit price cannot be negative"],
+    default: null,
+  },
+  itemDiscount: {
+    type: {
+      type: String,
+      enum: {
+        values: ["percentage", "fixed", null],
+        message: "Discount type must be percentage, fixed, or null",
+      },
+      default: null,
+    },
+    value: { type: Number, default: 0 },
+    amount: { type: Number, default: 0 },
+  },
 });
 
 const orderSchema = new mongoose.Schema(

@@ -5,6 +5,8 @@ import {
   getStorefrontInventoryById,
   updateStorefrontInventoryQuantity,
   getExpiringStorefrontInventory,
+  updateStorefrontInventoryDiscount,
+  bulkUpdateStorefrontDiscount,
 } from "../controllers/storefrontInventory.controller.js";
 import { protect } from "../controllers/administrationPolicy.controller.js";
 import { permissionGranted } from "../controllers/administrationPolicy.controller.js";
@@ -24,6 +26,22 @@ router.get(
   protect,
   permissionGranted("owner", "admin", "cashier", "warehouse"),
   getAllStorefrontInventory
+);
+
+// Bulk update discount for storefront inventory items (MUST be registered before /:id routes)
+router.patch(
+  "/storefront-inventory/discount/bulk",
+  protect,
+  permissionGranted("owner", "admin"),
+  bulkUpdateStorefrontDiscount
+);
+
+// Update discount for a single storefront inventory item
+router.patch(
+  "/storefront-inventory/:id/discount",
+  protect,
+  permissionGranted("owner", "admin"),
+  updateStorefrontInventoryDiscount
 );
 
 // Get expiring stock for storefront

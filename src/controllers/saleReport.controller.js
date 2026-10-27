@@ -81,6 +81,25 @@ export const getSaleReportByStorefrontId = asyncErrorHandler(
           totalSubTotal: { $sum: "$subTotal" },
           totalTax: { $sum: "$tax" },
           totalDiscount: { $sum: "$discount" },
+          totalItemDiscount: {
+            $sum: {
+              $reduce: {
+                input: "$ordersProducts",
+                initialValue: 0,
+                in: {
+                  $add: [
+                    "$value",
+                    {
+                      $multiply: [
+                        { $ifNull: ["$this.itemDiscount.amount", 0] },
+                        { $ifNull: ["$this.quantity", 0] },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          },
           totalExtraChange: { $sum: "$extraChange" },
           orderCount: { $sum: 1 },
           creditOrderCount: {
@@ -100,6 +119,7 @@ export const getSaleReportByStorefrontId = asyncErrorHandler(
       totalSubTotal: 0,
       totalTax: 0,
       totalDiscount: 0,
+      totalItemDiscount: 0,
       totalExtraChange: 0,
       orderCount: 0,
       creditOrderCount: 0,
@@ -130,6 +150,7 @@ export const getSaleReportByStorefrontId = asyncErrorHandler(
           subTotal: report.totalSubTotal,
           tax: report.totalTax,
           discount: report.totalDiscount,
+          totalItemDiscount: report.totalItemDiscount || 0,
           extraChange: report.totalExtraChange,
           orderCount: report.orderCount,
           creditOrderCount: report.creditOrderCount,
@@ -300,7 +321,7 @@ export const getPaymentMethodReportByStorefrontId = asyncErrorHandler(
 //     const filter = {
 //       isDeleted: false,
 //       orderStatus: "completed", // Only include completed orders
-//       paymentType: "credit", // Only credit orders
+//       ...(req.query.paymentType ? { paymentType: req.query.paymentType } : {}),
 //     };
 
 //     // Add storefrontId filter only if provided
@@ -500,7 +521,7 @@ export const getCreditSaleReportByStorefrontId = asyncErrorHandler(
     const filter = {
       isDeleted: false,
       orderStatus: "completed", // Only include completed orders
-      paymentType: "credit", // Only credit orders
+      ...(req.query.paymentType ? { paymentType: req.query.paymentType } : {}),
     };
 
     // Add storefrontId filter only if provided
@@ -773,12 +794,38 @@ export const getProductSalesReportByStorefrontId = asyncErrorHandler(
           retailQuantity: {
             $sum: {
               $cond: [
-                { $or: [
-                  { $eq: ["$invLookup.sellingPrice", null] },
-                  { $gte: ["$ordersProducts.unitPrice", "$invLookup.sellingPrice"] },
-                ]},
+                {
+                  $or: [
+                    { $eq: ["$invLookup.sellingPrice", null] },
+                    {
+                      $gte: [
+                        "$ordersProducts.unitPrice",
+                        {
+                          $ifNull: [
+                            "$ordersProducts.originalUnitPrice",
+                            "$invLookup.sellingPrice",
+                          ],
+                        },
+                      ],
+                    },
+                    {
+                      $gt: [
+                        { $ifNull: ["$ordersProducts.itemDiscount.amount", 0] },
+                        0,
+                      ],
+                    },
+                  ],
+                },
                 "$ordersProducts.quantity",
                 0,
+              ],
+            },
+          },
+          totalItemDiscount: {
+            $sum: {
+              $multiply: [
+                "$ordersProducts.quantity",
+                { $ifNull: ["$ordersProducts.itemDiscount.amount", 0] },
               ],
             },
           },
@@ -990,7 +1037,7 @@ export const getCreditPersonaProductReport = asyncErrorHandler(
     const filter = {
       isDeleted: false,
       orderStatus: "completed", // Only include completed orders
-      paymentType: "credit", // Only credit orders
+      ...(req.query.paymentType ? { paymentType: req.query.paymentType } : {}),
       creditPersonId: new mongoose.Types.ObjectId(creditPersonaId),
     };
 
@@ -1164,7 +1211,7 @@ export const getSaleProductsAnalyticsByCreditPerson = asyncErrorHandler(
     const filter = {
       isDeleted: false,
       orderStatus: "completed", // Only include completed orders
-      paymentType: "credit", // Only credit orders
+      ...(req.query.paymentType ? { paymentType: req.query.paymentType } : {}),
       creditPersonId: { $exists: true, $ne: null }, // Only orders with credit persons
     };
 

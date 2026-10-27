@@ -8,6 +8,8 @@ import CreditRecord from "../models/creditRecord.model.js";
 import { asyncErrorHandler } from "../utils/asyncErrorHandler.js";
 import CustomError from "../utils/customError.js";
 import { createDateFilter } from "../utils/dateFilter.utils.js";
+import { createStockAuditLog } from "../services/stockAuditLog.service.js";
+import { resolveUnitPrice } from "../utils/pricing.utils.js";
 
 // Create new order with ACID properties and stock deduction
 export const createOrder = asyncErrorHandler(async (req, res, next) => {
@@ -205,7 +207,21 @@ export const createOrder = asyncErrorHandler(async (req, res, next) => {
             inventoryMap.set(item._id.toString(), item);
           });
 
-          // 3. Prepare order products with unitPrice from current sellingPrice (snapshot)
+          // Pre-load StorefrontInventory records before price calculation to resolve storefront discounts
+          const stockRecords = await StorefrontInventory.find(
+            {
+              inventoryId: { $in: inventoryIds },
+              storefrontId: storefrontId,
+            },
+            null,
+            { session },
+          );
+          const stockMap = new Map();
+          stockRecords.forEach((rec) => {
+            stockMap.set(rec.inventoryId.toString(), rec);
+          });
+
+          // 3. Prepare order products with unitPrice from current sellingPrice/discount/wholesale
           const validatedProducts = [];
           let calculatedSubTotal = 0;
 
@@ -239,21 +255,24 @@ export const createOrder = asyncErrorHandler(async (req, res, next) => {
               );
             }
 
-            // Store current sellingPrice as snapshot unitPrice in order
-            let unitPrice = inventoryItem.sellingPrice;
-            if (inventoryItem.wholesalePrices?.length > 0) {
-              const sorted = [...inventoryItem.wholesalePrices].sort((a, b) => b.quantity - a.quantity);
-              const tier = sorted.find((wp) => product.quantity >= wp.quantity);
-              if (tier) unitPrice = tier.price;
-            }
+            const stockRecord = stockMap.get(inventoryId.toString());
+            const pricing = resolveUnitPrice({
+              inventory: inventoryItem,
+              stockRecord,
+              quantity: product.quantity,
+            });
+
+            const unitPrice = pricing.unitPrice;
             const productSubTotal = product.quantity * unitPrice;
             calculatedSubTotal += productSubTotal;
 
             validatedProducts.push({
               inventoryId,
               quantity: product.quantity,
-              unitPrice, // Snapshot of current selling price
-              buyingPrice: inventoryItem.buyingPrice || 0, // Snapshot of current buying price
+              unitPrice,
+              originalUnitPrice: pricing.originalUnitPrice,
+              itemDiscount: pricing.itemDiscount,
+              buyingPrice: inventoryItem.buyingPrice || 0,
             });
           }
 
@@ -275,14 +294,7 @@ export const createOrder = asyncErrorHandler(async (req, res, next) => {
 
           // 4. Validate stock availability and deduct stock (direct deduction)
           for (const product of validatedProducts) {
-            const stockRecord = await StorefrontInventory.findOne(
-              {
-                inventoryId: product.inventoryId,
-                storefrontId: storefrontId,
-              },
-              null,
-              { session },
-            );
+            const stockRecord = stockMap.get(product.inventoryId.toString());
 
             const inventoryItem = inventoryMap.get(
               product.inventoryId.toString(),
@@ -520,8 +532,8 @@ export const getAllOrders = asyncErrorHandler(async (req, res, next) => {
 
   const orders = await Order.find(filter)
     .populate("storefrontId", "locationName locationCode")
-    .populate("ordersProducts.inventoryId", "productName productCode SKU")
-    .populate("creditPersonId", "name phone address")
+    .populate("ordersProducts.inventoryId", "productName productCode SKU color size")
+    .populate("creditPersonId", "name phone address blacklist blacklistReason")
     .populate("soldBy", "name role")
     .sort({ createdAt: -1 });
 
@@ -540,7 +552,7 @@ export const getOrders = asyncErrorHandler(async (req, res, next) => {
   const order = await Order.findOne({ _id: orderId, isDeleted: false })
     .populate("storefrontId", "locationName locationCode")
     .populate("ordersProducts.inventoryId", "productName productCode SKU")
-    .populate("creditPersonId", "name phone address")
+    .populate("creditPersonId", "name phone address blacklist blacklistReason")
     .populate("soldBy", "name role");
 
   if (!order) {
@@ -768,7 +780,7 @@ export const getOrdersByStorefrontId = asyncErrorHandler(
       .sort({ createdAt: -1 }) // Sort by newest first
       .populate("storefrontId", "locationName locationCode")
       .populate("ordersProducts.inventoryId", "productName productCode SKU")
-      .populate("creditPersonId", "name phone address")
+      .populate("creditPersonId", "name phone address blacklist blacklistReason")
       .populate("soldBy", "name role");
 
     res.status(200).json({
@@ -969,13 +981,13 @@ export const addOrderItems = asyncErrorHandler(async (req, res, next) => {
       for (const item of items) {
         const inventoryId = new mongoose.Types.ObjectId(item.inventoryId);
         const inventoryItem = inventoryMap.get(inventoryId.toString());
-        let unitPrice = inventoryItem.sellingPrice;
-        if (inventoryItem.wholesalePrices?.length > 0) {
-          const sorted = [...inventoryItem.wholesalePrices].sort((a, b) => b.quantity - a.quantity);
-          const tier = sorted.find((wp) => item.quantity >= wp.quantity);
-          if (tier) unitPrice = tier.price;
-        }
         const stockRecord = stockRecordsMap.get(inventoryId.toString());
+        const pricing = resolveUnitPrice({
+          inventory: inventoryItem,
+          stockRecord,
+          quantity: item.quantity,
+        });
+        const unitPrice = pricing.unitPrice;
 
         // Check if item already exists in order
         const existingItemIndex = order.ordersProducts.findIndex(
@@ -984,15 +996,30 @@ export const addOrderItems = asyncErrorHandler(async (req, res, next) => {
         );
 
         if (existingItemIndex !== -1) {
-          // Item exists, increase quantity
-          order.ordersProducts[existingItemIndex].quantity += item.quantity;
+          // Item exists, increase quantity and recalculate price with new total quantity
+          const newTotalQty =
+            order.ordersProducts[existingItemIndex].quantity + item.quantity;
+          const updatedPricing = resolveUnitPrice({
+            inventory: inventoryItem,
+            stockRecord,
+            quantity: newTotalQty,
+          });
+          order.ordersProducts[existingItemIndex].quantity = newTotalQty;
+          order.ordersProducts[existingItemIndex].unitPrice =
+            updatedPricing.unitPrice;
+          order.ordersProducts[existingItemIndex].originalUnitPrice =
+            updatedPricing.originalUnitPrice;
+          order.ordersProducts[existingItemIndex].itemDiscount =
+            updatedPricing.itemDiscount;
         } else {
           // Item doesn't exist, add new item
           order.ordersProducts.push({
             inventoryId: inventoryId,
             quantity: item.quantity,
             unitPrice,
-            buyingPrice: inventoryItem.buyingPrice || 0, // Snapshot of current buying price
+            originalUnitPrice: pricing.originalUnitPrice,
+            itemDiscount: pricing.itemDiscount,
+            buyingPrice: inventoryItem.buyingPrice || 0,
           });
         }
 
@@ -1509,7 +1536,7 @@ export const updateEntireOrder = asyncErrorHandler(async (req, res, next) => {
         inventoryMap.set(item._id.toString(), item);
       });
 
-      // 3. Map old products in the order: inventoryId string -> { quantity, unitPrice, buyingPrice }
+      // 3. Map old products in the order: inventoryId string -> { quantity, unitPrice, buyingPrice, originalUnitPrice, itemDiscount }
       const oldProductMap = new Map();
       for (const op of order.ordersProducts) {
         const idStr = op.inventoryId.toString();
@@ -1517,6 +1544,8 @@ export const updateEntireOrder = asyncErrorHandler(async (req, res, next) => {
           quantity: (oldProductMap.get(idStr)?.quantity || 0) + op.quantity,
           unitPrice: op.unitPrice,
           buyingPrice: op.buyingPrice,
+          originalUnitPrice: op.originalUnitPrice,
+          itemDiscount: op.itemDiscount,
         });
       }
 
@@ -1604,12 +1633,29 @@ export const updateEntireOrder = asyncErrorHandler(async (req, res, next) => {
       const updatedOrdersProducts = [];
       let calculatedSubTotal = 0;
 
+      // Load stock records for new products to calculate storefront discounts if needed
+      const newInvObjectIds = Array.from(newProductMap.keys()).map(
+        (id) => new mongoose.Types.ObjectId(id)
+      );
+      const stockRecordsForNew = await StorefrontInventory.find({
+        inventoryId: { $in: newInvObjectIds },
+        storefrontId: new mongoose.Types.ObjectId(storefrontId),
+      }).session(session);
+      const stockRecordMap = new Map();
+      stockRecordsForNew.forEach((rec) => {
+        stockRecordMap.set(rec.inventoryId.toString(), rec);
+      });
+
       for (const [idStr, qty] of newProductMap.entries()) {
         const invItem = inventoryMap.get(idStr);
-        let unitPrice = oldProductMap.get(idStr)?.unitPrice;
         const incomingItem = ordersProducts.find(
           (p) => p.inventoryId.toString() === idStr
         );
+        const oldItem = oldProductMap.get(idStr);
+
+        let unitPrice;
+        let originalUnitPrice = null;
+        let itemDiscount = null;
 
         if (
           incomingItem &&
@@ -1617,19 +1663,34 @@ export const updateEntireOrder = asyncErrorHandler(async (req, res, next) => {
           incomingItem.unitPrice !== null
         ) {
           unitPrice = Number(incomingItem.unitPrice);
-        } else if (unitPrice === undefined || unitPrice === null) {
-          unitPrice = invItem.sellingPrice;
-          if (invItem.wholesalePrices && invItem.wholesalePrices.length > 0) {
-            const sorted = [...invItem.wholesalePrices].sort(
-              (a, b) => b.quantity - a.quantity
-            );
-            const tier = sorted.find((wp) => qty >= wp.quantity);
-            if (tier) unitPrice = tier.price;
-          }
+          originalUnitPrice =
+            incomingItem.originalUnitPrice ??
+            oldItem?.originalUnitPrice ??
+            invItem.sellingPrice;
+          itemDiscount =
+            incomingItem.itemDiscount ?? oldItem?.itemDiscount ?? null;
+        } else if (
+          oldItem?.unitPrice !== undefined &&
+          oldItem?.unitPrice !== null
+        ) {
+          unitPrice = oldItem.unitPrice;
+          originalUnitPrice =
+            oldItem.originalUnitPrice ?? invItem.sellingPrice;
+          itemDiscount = oldItem.itemDiscount ?? null;
+        } else {
+          const stockRecord = stockRecordMap.get(idStr);
+          const pricing = resolveUnitPrice({
+            inventory: invItem,
+            stockRecord,
+            quantity: qty,
+          });
+          unitPrice = pricing.unitPrice;
+          originalUnitPrice = pricing.originalUnitPrice;
+          itemDiscount = pricing.itemDiscount;
         }
 
         const buyingPrice =
-          oldProductMap.get(idStr)?.buyingPrice ?? (invItem.buyingPrice || 0);
+          oldItem?.buyingPrice ?? (invItem.buyingPrice || 0);
 
         calculatedSubTotal += qty * unitPrice;
 
@@ -1637,6 +1698,8 @@ export const updateEntireOrder = asyncErrorHandler(async (req, res, next) => {
           inventoryId: new mongoose.Types.ObjectId(idStr),
           quantity: qty,
           unitPrice,
+          originalUnitPrice,
+          itemDiscount,
           buyingPrice,
         });
       }
@@ -1731,9 +1794,41 @@ export const updateOrderStatusAndPayment = asyncErrorHandler(
       return next(new CustomError(400, "Invalid order ID format"));
     }
 
-    const order = await Order.findOne({ _id: orderId, isDeleted: false });
+    let order = await Order.findOne({ _id: orderId, isDeleted: false });
     if (!order) {
       return next(new CustomError(404, "Order not found"));
+    }
+
+    // E-commerce orders follow a strict lifecycle (see updateEcommerceOrderStatus)
+    if (order.orderSource === "ecommerce") {
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          order = await updateEcommerceOrderStatus({
+            orderId,
+            orderStatus,
+            paymentStatus,
+            note,
+            adminId: req.user?._id,
+            session,
+          });
+        });
+      } catch (error) {
+        return next(
+          error instanceof CustomError
+            ? error
+            : new CustomError(500, `Failed to update order status: ${error.message}`),
+        );
+      } finally {
+        await session.endSession();
+      }
+
+      await populateOrderForResponse(order);
+      return res.status(200).json({
+        success: true,
+        message: "Order status updated successfully",
+        data: order,
+      });
     }
 
     if (orderStatus) {
@@ -1786,13 +1881,7 @@ export const updateOrderStatusAndPayment = asyncErrorHandler(
 
     await order.save();
 
-    await order.populate("storefrontId", "locationName locationCode");
-    await order.populate(
-      "ordersProducts.inventoryId",
-      "productName productCode SKU images color size",
-    );
-    await order.populate("creditPersonId", "name phone address");
-    await order.populate("soldBy", "name role");
+    await populateOrderForResponse(order);
 
     res.status(200).json({
       success: true,
@@ -1801,4 +1890,164 @@ export const updateOrderStatusAndPayment = asyncErrorHandler(
     });
   },
 );
+
+const populateOrderForResponse = async (order) => {
+  await order.populate("storefrontId", "locationName locationCode");
+  await order.populate(
+    "ordersProducts.inventoryId",
+    "productName productCode SKU images color size",
+  );
+  await order.populate("creditPersonId", "name phone address");
+  await order.populate("soldBy", "name role");
+};
+
+// E-commerce order lifecycle:
+//   pending → confirmed → shipped → completed, and any open step → cancelled.
+// "completed" is the final step because every sales report only counts completed orders.
+// "delivered" is kept as a source state for orders updated before the completed step existed.
+const ECOMMERCE_STATUS_TRANSITIONS = {
+  pending: ["confirmed", "cancelled"],
+  confirmed: ["shipped", "cancelled"],
+  shipped: ["completed", "cancelled"],
+  delivered: ["completed", "cancelled"],
+  completed: [],
+  cancelled: [],
+};
+
+// Manual payment changes an admin may make (refunds happen automatically on cancel)
+const ECOMMERCE_PAYMENT_TRANSITIONS = {
+  pending_verification: ["paid", "unpaid"], // slip verified / slip rejected
+  unpaid: ["paid"],
+  paid: [],
+  refunded: [],
+};
+
+/**
+ * Applies a status / payment change to an e-commerce order inside a transaction.
+ * Re-reads the order with the session so concurrent requests cannot both act on the
+ * same starting state (e.g. restocking a cancelled order twice).
+ * Throws CustomError for invalid changes.
+ */
+const updateEcommerceOrderStatus = async ({
+  orderId,
+  orderStatus,
+  paymentStatus,
+  note,
+  adminId,
+  session,
+}) => {
+  const order = await Order.findOne({ _id: orderId, isDeleted: false }).session(session);
+  if (!order) {
+    throw new CustomError(404, "Order not found");
+  }
+
+  const currentStatus = order.orderStatus;
+  const currentPayment = order.paymentInfo?.paymentStatus || "unpaid";
+  const isStatusChange = Boolean(orderStatus) && orderStatus !== currentStatus;
+  const isPaymentChange = Boolean(paymentStatus) && paymentStatus !== currentPayment;
+
+  if (isStatusChange) {
+    const allowed = ECOMMERCE_STATUS_TRANSITIONS[currentStatus] || [];
+    if (!allowed.includes(orderStatus)) {
+      throw new CustomError(
+        400,
+        `Cannot change e-commerce order from '${currentStatus}' to '${orderStatus}'`,
+      );
+    }
+  }
+
+  if (isPaymentChange) {
+    if (["completed", "cancelled"].includes(currentStatus)) {
+      throw new CustomError(400, `Cannot change payment of a ${currentStatus} order`);
+    }
+    const allowed = ECOMMERCE_PAYMENT_TRANSITIONS[currentPayment] || [];
+    if (!allowed.includes(paymentStatus)) {
+      throw new CustomError(
+        400,
+        `Cannot change payment status from '${currentPayment}' to '${paymentStatus}'`,
+      );
+    }
+  }
+
+  const nextStatus = isStatusChange ? orderStatus : currentStatus;
+  let nextPayment = isPaymentChange ? paymentStatus : currentPayment;
+  const isCod = order.paymentInfo?.paymentMethod === "cod";
+
+  if (isStatusChange && nextStatus === "completed") {
+    if (isCod) {
+      // Cash is collected on delivery, so completing a COD order means it is paid
+      nextPayment = "paid";
+    } else if (nextPayment !== "paid") {
+      throw new CustomError(
+        400,
+        "Verify the payment slip (mark as paid) before completing a prepaid order",
+      );
+    }
+  }
+
+  if (isStatusChange && nextStatus === "cancelled") {
+    await restockCancelledEcommerceOrder(order, adminId, session);
+    if (nextPayment === "paid") {
+      // Money already received must be returned to the customer manually
+      nextPayment = "refunded";
+    }
+  }
+
+  order.orderStatus = nextStatus;
+  if (!order.paymentInfo) {
+    order.paymentInfo = {};
+  }
+  order.paymentInfo.paymentStatus = nextPayment;
+  if (nextPayment === "paid") {
+    order.paidAmount = order.finalAmount;
+  }
+  if (note !== undefined) {
+    order.note = note;
+  }
+
+  await order.save({ session });
+  return order;
+};
+
+// Returns every item of a cancelled e-commerce order to its storefront (SF-ECOMMERCE) stock
+const restockCancelledEcommerceOrder = async (order, adminId, session) => {
+  for (const item of order.ordersProducts) {
+    const quantity = Number(item.quantity) || 0;
+    if (quantity <= 0) continue;
+
+    let stock = await StorefrontInventory.findOne({
+      storefrontId: order.storefrontId,
+      inventoryId: item.inventoryId,
+    }).session(session);
+
+    const beforeQuantity = stock ? stock.quantity : 0;
+    if (stock) {
+      stock.quantity = beforeQuantity + quantity;
+      await stock.save({ session });
+    } else {
+      [stock] = await StorefrontInventory.create(
+        [{ storefrontId: order.storefrontId, inventoryId: item.inventoryId, quantity }],
+        { session },
+      );
+    }
+
+    if (adminId) {
+      await createStockAuditLog({
+        inventoryId: item.inventoryId,
+        adminId,
+        locationId: order.storefrontId,
+        locationType: "storefront",
+        stockRecordId: stock._id,
+        beforeQuantity,
+        afterQuantity: beforeQuantity + quantity,
+        quantityChange: quantity,
+        action: "add",
+        reason: `E-commerce order ${order.orderNumber} cancelled — stock returned`,
+        relatedTransactionId: order._id,
+        relatedTransactionType: "order",
+        session,
+      });
+    }
+  }
+};
 

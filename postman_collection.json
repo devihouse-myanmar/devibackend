@@ -1776,6 +1776,75 @@
             "description": "Update storefront inventory quantity. Requires owner role."
           },
           "response": []
+        },
+        {
+          "name": "Update Storefront Inventory Discount",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"percentage\",\n  \"value\": 10,\n  \"startDate\": null,\n  \"endDate\": null,\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/storefront-inventory/:id/discount",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "storefront-inventory",
+                ":id",
+                "discount"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "<storefront_inventory_id>",
+                  "description": "Storefront inventory record ID"
+                }
+              ]
+            },
+            "description": "Set or update discount on a storefront inventory item. Requires owner or admin role."
+          },
+          "response": []
+        },
+        {
+          "name": "Bulk Update Storefront Discount",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storefrontId\": \"<storefront_id>\",\n  \"category\": \"ပိုးထည်\",\n  \"discount\": {\n    \"type\": \"percentage\",\n    \"value\": 15,\n    \"startDate\": null,\n    \"endDate\": null,\n    \"isActive\": true\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/storefront-inventory/discount/bulk",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "storefront-inventory",
+                "discount",
+                "bulk"
+              ]
+            },
+            "description": "Bulk update discounts for a category or inventoryIds list in a storefront. Requires owner or admin role."
+          },
+          "response": []
         }
       ]
     },

@@ -126,6 +126,8 @@
 | `GET` | `/storefront-inventory/:storefrontId/expiring-stock` | `owner`, `admin`, `cashier` | Check expiring batches for a storefront. |
 | `GET` | `/storefront-inventory/:id` | `owner`, `admin`, `cashier` | Get storefront stock item by ID. |
 | `PATCH` | `/storefront-inventory/:id/quantity` | `owner` | Manually adjust storefront stock quantity. |
+| `PATCH` | `/storefront-inventory/:id/discount` | `owner`, `admin` | Set, update, or remove discount for a product at a specific storefront. |
+| `PATCH` | `/storefront-inventory/discount/bulk` | `owner`, `admin` | Bulk update discounts across a category or array of inventory IDs for a storefront. |
 
 ---
 
@@ -311,6 +313,20 @@
 | `DELETE` | `/shop-settings/logo` | `owner`, `admin` | Remove current shop logo. |
 | `GET` | `/shop-settings/history` | `owner`, `admin` | View history of changes to shop settings. |
 | `PUT` | `/shop-settings/cron-time` | `owner`, `admin` | Update the daily automated report cron trigger time. |
+
+---
+
+## 20. E-commerce Storefront (Public Tokenless Endpoints)
+
+**Base Path:** `/api/v1/ecommerce`
+
+| Method | Endpoint | Access / Roles | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/ecommerce/products` | Public | Get public catalog with stock & design grouping, including `originalPrice`, `price`, `sellingPrice` (discounted), and `discountLabel`. |
+| `GET` | `/ecommerce/products/:id` | Public | Get single product and available color variants with per-variant discount and pricing. |
+| `POST` | `/ecommerce/orders` | Public | Place customer e-commerce order (server recalculates discounted pricing automatically). |
+| `POST` | `/ecommerce/orders/track` | Public | Track order status by order number and phone; includes `originalUnitPrice` and `itemDiscount`. |
+| `GET` | `/ecommerce/store-info` | Public | Retrieve public store information and supported payment methods. |
 
 ---
 

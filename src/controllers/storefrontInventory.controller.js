@@ -2,6 +2,7 @@ import StorefrontInventory from "../models/storefrontInventory.model.js";
 import Inventory from "../models/inventory.model.js";
 import LocationProfile from "../models/locationProfile.model.js";
 import { asyncErrorHandler } from "../utils/asyncErrorHandler.js";
+import { resolveUnitPrice, isDiscountEffective } from "../utils/pricing.utils.js";
 import CustomError from "../utils/customError.js";
 import mongoose from "mongoose";
 import {
@@ -213,6 +214,11 @@ export const getAllStorefrontInventory = asyncErrorHandler(
       query.isLowStock = isLowStock === "true";
     }
 
+    if (req.query.hasDiscount === "true") {
+      query["discount.isActive"] = true;
+      query["discount.value"] = { $gt: 0 };
+    }
+
     if (search) {
       // Search in populated fields - we'll need to search after population
       // For now, search by productCode if it matches ObjectId pattern, otherwise skip
@@ -266,7 +272,8 @@ export const getAllStorefrontInventory = asyncErrorHandler(
           lastUpdated: { $max: "$lastUpdated" },
           createdAt: { $min: "$createdAt" },
           updatedAt: { $max: "$updatedAt" },
-          inventoryId: { $first: "$inventoryId" }
+          inventoryId: { $first: "$inventoryId" },
+          discount: { $first: "$discount" }
         }
       },
       {
@@ -288,6 +295,7 @@ export const getAllStorefrontInventory = asyncErrorHandler(
           createdAt: 1,
           updatedAt: 1,
           inventoryId: 1,
+          discount: 1,
           storefrontId: {
             _id: "$storefrontId._id",
             locationName: "$storefrontId.locationName",
@@ -346,12 +354,26 @@ export const getAllStorefrontInventory = asyncErrorHandler(
     // Execute aggregate query
     const stock = await StorefrontInventory.aggregate(pipeline);
 
+    const processedStock = stock.map((item) => {
+      const inv = item.inventoryId;
+      const pricing = resolveUnitPrice({
+        inventory: inv,
+        stockRecord: item,
+        quantity: 1,
+      });
+      return {
+        ...item,
+        effectivePrice: pricing.unitPrice,
+        isDiscountActive: isDiscountEffective(item.discount),
+      };
+    });
+
     const response = {
       success: true,
       message:
         "Storefront inventory retrieved successfully (Active products only)",
       summary,
-      data: stock,
+      data: processedStock,
     };
 
     if (usePagination) {
@@ -622,6 +644,393 @@ export const getExpiringStorefrontInventory = asyncErrorHandler(
       success: true,
       message: "Expiring storefront stock retrieved successfully",
       data: expiringStock
+    });
+  }
+);
+
+// Update discount for a single storefront inventory item
+export const updateStorefrontInventoryDiscount = asyncErrorHandler(
+  async (req, res, next) => {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return next(new CustomError(400, "Invalid storefront inventory ID format"));
+    }
+
+    // Try finding by StorefrontInventory._id first
+    let stockRecord = await StorefrontInventory.findById(id).populate(
+      "inventoryId",
+      "productName productCode sellingPrice buyingPrice wholesalePrices",
+    );
+
+    // If not found by document ID, try finding by inventoryId
+    if (!stockRecord) {
+      const query = { inventoryId: id };
+      const sfId = req.body.storefrontId || req.query.storefrontId;
+      if (sfId && mongoose.Types.ObjectId.isValid(sfId)) {
+        query.storefrontId = sfId;
+      }
+      stockRecord = await StorefrontInventory.findOne(query).populate(
+        "inventoryId",
+        "productName productCode sellingPrice buyingPrice wholesalePrices",
+      );
+    }
+
+    if (!stockRecord) {
+      return next(new CustomError(404, "Storefront inventory record not found"));
+    }
+
+    // Extract discount data either from nested discount object or top-level body
+    const discountData =
+      req.body.discount !== undefined ? req.body.discount : req.body;
+
+    // Handle removal
+    if (discountData === null) {
+      stockRecord.discount = {
+        type: "percentage",
+        value: 0,
+        startDate: null,
+        endDate: null,
+        isActive: false,
+        updatedBy: req.user?._id || null,
+      };
+      stockRecord.lastUpdated = new Date();
+      await stockRecord.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Storefront inventory discount removed successfully",
+        data: stockRecord,
+      });
+    }
+
+    const { type, value, startDate, endDate, isActive } = discountData;
+
+    const inventoryItem = stockRecord.inventoryId;
+    const sellingPrice = inventoryItem
+      ? Number(inventoryItem.sellingPrice) || 0
+      : 0;
+
+    const discountType = type || stockRecord.discount?.type || "percentage";
+    if (!["percentage", "fixed"].includes(discountType)) {
+      return next(new CustomError(400, "Discount type must be percentage or fixed"));
+    }
+
+    const numValue =
+      value !== undefined
+        ? Number(value)
+        : stockRecord.discount?.value || 0;
+    if (isNaN(numValue) || numValue < 0) {
+      return next(new CustomError(400, "Discount value cannot be negative"));
+    }
+
+    if (discountType === "percentage" && numValue > 100) {
+      return next(new CustomError(400, "Percentage discount cannot exceed 100%"));
+    }
+
+    if (discountType === "fixed" && numValue > sellingPrice) {
+      return next(
+        new CustomError(
+          400,
+          `Fixed discount value (${numValue} MMK) cannot exceed product selling price (${sellingPrice} MMK)`,
+        ),
+      );
+    }
+
+    const parsedStart =
+      startDate !== undefined
+        ? startDate
+          ? new Date(startDate)
+          : null
+        : stockRecord.discount?.startDate;
+    const parsedEnd =
+      endDate !== undefined
+        ? endDate
+          ? new Date(endDate)
+          : null
+        : stockRecord.discount?.endDate;
+
+    if (parsedStart && parsedEnd && new Date(parsedEnd) < new Date(parsedStart)) {
+      return next(
+        new CustomError(400, "Discount end date cannot be earlier than start date"),
+      );
+    }
+
+    const activeFlag =
+      isActive !== undefined ? Boolean(isActive) : numValue > 0;
+
+    stockRecord.discount = {
+      type: discountType,
+      value: numValue,
+      startDate: parsedStart,
+      endDate: parsedEnd,
+      isActive: activeFlag,
+      updatedBy: req.user?._id || null,
+    };
+
+    stockRecord.lastUpdated = new Date();
+    await stockRecord.save();
+
+    const pricing = resolveUnitPrice({
+      inventory: inventoryItem,
+      stockRecord,
+      quantity: 1,
+    });
+
+    const populatedRecord = await StorefrontInventory.findById(stockRecord._id)
+      .populate(
+        "inventoryId",
+        "productName productCode SKU category buyingPrice sellingPrice wholesalePrices barcode status",
+      )
+      .populate("storefrontId", "locationName locationCode locationAddress")
+      .populate("discount.updatedBy", "name role");
+
+    res.status(200).json({
+      success: true,
+      message: "Storefront inventory discount updated successfully",
+      data: {
+        ...populatedRecord.toObject(),
+        effectivePrice: pricing.unitPrice,
+        isDiscountActive: isDiscountEffective(stockRecord.discount),
+      },
+    });
+  }
+);
+
+// Bulk update discount for storefront inventory items
+export const bulkUpdateStorefrontDiscount = asyncErrorHandler(
+  async (req, res, next) => {
+    const { storefrontId, category } = req.body;
+    const inventoryIds = req.body.inventoryIds || req.body.itemIds;
+    const discount = req.body.discount;
+
+    if (!storefrontId || !mongoose.Types.ObjectId.isValid(storefrontId)) {
+      return next(new CustomError(400, "Valid storefrontId is required"));
+    }
+
+    const storefront = await LocationProfile.findOne({
+      _id: storefrontId,
+      type: "storefront",
+      isDeleted: false,
+    });
+    if (!storefront) {
+      return next(new CustomError(404, "Storefront not found"));
+    }
+
+    // Exactly one of inventoryIds or category is required
+    const hasInventoryIds =
+      Array.isArray(inventoryIds) && inventoryIds.length > 0;
+    const hasCategory = Boolean(
+      category && typeof category === "string" && category.trim(),
+    );
+
+    if (
+      (hasInventoryIds && hasCategory) ||
+      (!hasInventoryIds && !hasCategory)
+    ) {
+      return next(
+        new CustomError(
+          400,
+          "Exactly one of 'inventoryIds' (array) or 'category' (string) is required",
+        ),
+      );
+    }
+
+    // Handle bulk removal
+    if (discount === null) {
+      const filter = { storefrontId: storefront._id };
+      if (hasCategory) {
+        const catRegex = new RegExp(`^${category.trim()}$`, "i");
+        const matchedInventories = await Inventory.find({
+          category: catRegex,
+          isDeleted: { $ne: true },
+        }).select("_id");
+        filter.inventoryId = { $in: matchedInventories.map((i) => i._id) };
+      } else {
+        const validIds = inventoryIds
+          .filter((id) => mongoose.Types.ObjectId.isValid(id))
+          .map((id) => new mongoose.Types.ObjectId(id));
+        filter.$or = [
+          { inventoryId: { $in: validIds } },
+          { _id: { $in: validIds } },
+        ];
+      }
+
+      const result = await StorefrontInventory.updateMany(filter, {
+        $set: {
+          discount: {
+            type: "percentage",
+            value: 0,
+            startDate: null,
+            endDate: null,
+            isActive: false,
+            updatedBy: req.user?._id || null,
+          },
+          lastUpdated: new Date(),
+        },
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: `Discounts removed for ${result.modifiedCount} items successfully`,
+        data: {
+          matchedCount: result.matchedCount,
+          modifiedCount: result.modifiedCount,
+        },
+      });
+    }
+
+    if (!discount || typeof discount !== "object") {
+      return next(new CustomError(400, "Discount object is required"));
+    }
+
+    const discountType = discount.type || "percentage";
+    if (!["percentage", "fixed"].includes(discountType)) {
+      return next(new CustomError(400, "Discount type must be percentage or fixed"));
+    }
+
+    const numValue = Number(discount.value);
+    if (isNaN(numValue) || numValue < 0) {
+      return next(new CustomError(400, "Discount value cannot be negative"));
+    }
+
+    if (discountType === "percentage" && numValue > 100) {
+      return next(new CustomError(400, "Percentage discount cannot exceed 100%"));
+    }
+
+    const parsedStart = discount.startDate ? new Date(discount.startDate) : null;
+    const parsedEnd = discount.endDate ? new Date(discount.endDate) : null;
+    if (parsedStart && parsedEnd && parsedEnd < parsedStart) {
+      return next(
+        new CustomError(400, "Discount end date cannot be earlier than start date"),
+      );
+    }
+
+    let targetInventoryIds = [];
+    if (hasCategory) {
+      const catRegex = new RegExp(`^${category.trim()}$`, "i");
+      const matchedInventories = await Inventory.find({
+        category: catRegex,
+        isDeleted: { $ne: true },
+      }).select("_id sellingPrice productCode productName");
+      if (matchedInventories.length === 0) {
+        return next(
+          new CustomError(
+            404,
+            `No active products found in category '${category}'`,
+          ),
+        );
+      }
+      targetInventoryIds = matchedInventories.map((inv) => inv._id);
+
+      // Rule R6 validation for fixed discount
+      if (discountType === "fixed" && numValue > 0) {
+        const cheapest = matchedInventories.reduce(
+          (min, item) => (item.sellingPrice < min.sellingPrice ? item : min),
+          matchedInventories[0],
+        );
+        if (numValue > cheapest.sellingPrice) {
+          return next(
+            new CustomError(
+              400,
+              `Fixed discount value (${numValue} MMK) cannot exceed selling price of '${cheapest.productName}' (${cheapest.sellingPrice} MMK) in this category`,
+            ),
+          );
+        }
+      }
+    } else {
+      const invalidIds = inventoryIds.filter(
+        (id) => !mongoose.Types.ObjectId.isValid(id),
+      );
+      if (invalidIds.length > 0) {
+        return next(
+          new CustomError(
+            400,
+            `Invalid inventory ID format(s): ${invalidIds.join(", ")}`,
+          ),
+        );
+      }
+
+      let matchedInventories = await Inventory.find({
+        _id: { $in: inventoryIds },
+        isDeleted: { $ne: true },
+      }).select("_id sellingPrice productCode productName");
+
+      if (matchedInventories.length === 0) {
+        // Check if inventoryIds are storefrontInventory IDs
+        const stockDocs = await StorefrontInventory.find({
+          _id: { $in: inventoryIds },
+          storefrontId: storefront._id,
+        }).select("inventoryId");
+        const foundInvIds = stockDocs.map((s) => s.inventoryId);
+        matchedInventories = await Inventory.find({
+          _id: { $in: foundInvIds },
+          isDeleted: { $ne: true },
+        }).select("_id sellingPrice productCode productName");
+      }
+
+      if (matchedInventories.length === 0) {
+        return next(
+          new CustomError(404, "No active products found for provided inventoryIds"),
+        );
+      }
+      targetInventoryIds = matchedInventories.map((inv) => inv._id);
+
+      // Rule R6 validation for fixed discount
+      if (discountType === "fixed" && numValue > 0) {
+        const cheapest = matchedInventories.reduce(
+          (min, item) => (item.sellingPrice < min.sellingPrice ? item : min),
+          matchedInventories[0],
+        );
+        if (numValue > cheapest.sellingPrice) {
+          return next(
+            new CustomError(
+              400,
+              `Fixed discount value (${numValue} MMK) cannot exceed selling price of '${cheapest.productName}' (${cheapest.sellingPrice} MMK)`,
+            ),
+          );
+        }
+      }
+    }
+
+    const discountPayload = {
+      type: discountType,
+      value: numValue,
+      startDate: parsedStart,
+      endDate: parsedEnd,
+      isActive:
+        discount.isActive !== undefined ? Boolean(discount.isActive) : numValue > 0,
+      updatedBy: req.user?._id || null,
+    };
+
+    const validRawIds = (inventoryIds || [])
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+
+    const result = await StorefrontInventory.updateMany(
+      {
+        storefrontId: new mongoose.Types.ObjectId(storefrontId),
+        $or: [
+          { inventoryId: { $in: targetInventoryIds } },
+          { _id: { $in: validRawIds } },
+        ],
+      },
+      {
+        $set: {
+          discount: discountPayload,
+          lastUpdated: new Date(),
+        },
+      },
+    );
+
+    res.status(200).json({
+      success: true,
+      message: `Discount applied to ${result.modifiedCount} items successfully`,
+      data: {
+        matchedCount: result.matchedCount,
+        modifiedCount: result.modifiedCount,
+        discount: discountPayload,
+      },
     });
   }
 );
