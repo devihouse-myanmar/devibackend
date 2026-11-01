@@ -9,6 +9,7 @@ import {
   getSecurityAuditLogs,
   getSecurityAlerts,
   acknowledgeSecurityAlert,
+  acknowledgeAllSecurityAlerts,
   getPublicPaymentAccounts,
 } from "../controllers/paymentAccount.controller.js";
 import {
@@ -91,6 +92,14 @@ router.get(
   permissionGranted("owner"),
   paymentAccountRateLimiter,
   getSecurityAlerts
+);
+
+router.post(
+  "/security-alerts/ack-all",
+  protect,
+  permissionGranted("owner"),
+  paymentAccountRateLimiter,
+  acknowledgeAllSecurityAlerts
 );
 
 router.post(

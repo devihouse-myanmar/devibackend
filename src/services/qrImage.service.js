@@ -1,11 +1,13 @@
 import crypto from "crypto";
 import sharp from "sharp";
 import jsQR from "jsqr";
-import { PutObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand, HeadObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { r2Client, R2_BUCKET_NAME } from "../configs/cloudflareR2.config.js";
 import CustomError from "../utils/customError.js";
 
 const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1 MB limit (S5)
+
+export const QR_KEY_REGEX = /^payment-qr\/[a-f0-9]{64}\.png$/;
 
 /**
  * Validates file magic bytes to ensure file is genuinely PNG or JPEG (S5).
@@ -153,7 +155,118 @@ export const processAndUploadQrImage = async (buffer) => {
   return {
     url: publicUrl,
     key,
+    qrImageKey: key,
+    qrImageUrl: publicUrl,
     sha256,
+    qrSha256: sha256,
+    decodedText,
+    qrDecodedText: decodedText,
+  };
+};
+
+/**
+ * Server-side verification of a QR image stored in Cloudflare R2 (Problem 1 Fix).
+ * 1. Checks key format matches ^payment-qr/[a-f0-9]{64}\.png$
+ * 2. Fetches object from R2 (fails if not found)
+ * 3. Recomputes SHA-256 and asserts it equals key name hash
+ * 4. Decodes QR with jsQR (rejects if unreadable)
+ * 5. Builds qrImageUrl from R2_PUBLIC_URL + key
+ *
+ * @param {string} qrImageKey
+ * @returns {Promise<{ key: string, url: string, sha256: string, decodedText: string }>}
+ */
+export const verifyAndResolveQrKey = async (qrImageKey) => {
+  if (!qrImageKey || typeof qrImageKey !== "string") {
+    throw new CustomError(400, "qrImageKey must be a non-empty string");
+  }
+
+  // 1. Key format validation
+  if (!QR_KEY_REGEX.test(qrImageKey)) {
+    throw new CustomError(
+      400,
+      "Invalid QR image key format. Key must match pattern: payment-qr/<64-char-hex-sha256>.png"
+    );
+  }
+
+  const expectedSha256 = qrImageKey.slice("payment-qr/".length, -4).toLowerCase();
+
+  // 2. Fetch object bytes from Cloudflare R2
+  let objectBytes;
+  try {
+    const getCommand = new GetObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: qrImageKey,
+    });
+    const response = await r2Client.send(getCommand);
+    const byteArray = await response.Body.transformToByteArray();
+    objectBytes = Buffer.from(byteArray);
+  } catch (err) {
+    if (
+      err.name === "NoSuchKey" ||
+      err.$metadata?.httpStatusCode === 404 ||
+      err.Code === "NoSuchKey"
+    ) {
+      throw new CustomError(
+        400,
+        `QR image key '${qrImageKey}' does not exist in Cloudflare R2 storage`
+      );
+    }
+    throw new CustomError(
+      500,
+      `Failed to fetch QR image from Cloudflare R2: ${err.message}`
+    );
+  }
+
+  // 3. Recompute SHA-256 and verify it matches the key name
+  const actualSha256 = crypto
+    .createHash("sha256")
+    .update(objectBytes)
+    .digest("hex")
+    .toLowerCase();
+
+  if (actualSha256 !== expectedSha256) {
+    throw new CustomError(
+      400,
+      "Corrupted QR image: object content SHA-256 does not match key hash"
+    );
+  }
+
+  // 4. Decode QR code again with jsQR
+  let decodedText = null;
+  try {
+    const { data, info } = await sharp(objectBytes)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const qrResult = jsQR(
+      new Uint8ClampedArray(data),
+      info.width,
+      info.height
+    );
+
+    if (!qrResult || !qrResult.data) {
+      throw new CustomError(
+        400,
+        "No readable QR code found in the stored image object"
+      );
+    }
+    decodedText = qrResult.data.trim();
+  } catch (decodeErr) {
+    if (decodeErr instanceof CustomError) throw decodeErr;
+    throw new CustomError(
+      400,
+      `Failed to decode QR code from stored object: ${decodeErr.message}`
+    );
+  }
+
+  // 5. Construct canonical R2 URL
+  const publicUrl = `${process.env.R2_PUBLIC_URL}/${qrImageKey}`;
+
+  return {
+    key: qrImageKey,
+    url: publicUrl,
+    sha256: actualSha256,
     decodedText,
   };
 };

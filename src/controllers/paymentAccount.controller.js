@@ -5,7 +5,7 @@ import PaymentAccountVersion from "../models/paymentAccountVersion.model.js";
 import SecurityAuditLog from "../models/securityAuditLog.model.js";
 import SecurityAlert from "../models/securityAlert.model.js";
 import { verifyPasswordOrThrow } from "../services/stepUpAuth.service.js";
-import { processAndUploadQrImage } from "../services/qrImage.service.js";
+import { processAndUploadQrImage, verifyAndResolveQrKey } from "../services/qrImage.service.js";
 import { asyncErrorHandler } from "../utils/asyncErrorHandler.js";
 import CustomError from "../utils/customError.js";
 
@@ -94,13 +94,24 @@ export const createPaymentAccount = asyncErrorHandler(async (req, res, next) => 
     accountNumber,
     brandColor,
     textColor,
-    qrImageUrl,
     qrImageKey,
-    qrSha256,
-    qrDecodedText,
     qrChecked,
     sortOrder,
   } = req.body;
+
+  // Reject client-provided QR URLs, hashes, or decoded text (Problem 1)
+  if (
+    req.body.qrImageUrl !== undefined ||
+    req.body.qrSha256 !== undefined ||
+    req.body.qrDecodedText !== undefined
+  ) {
+    return next(
+      new CustomError(
+        400,
+        "Client cannot provide qrImageUrl, qrSha256, or qrDecodedText. Only qrImageKey is allowed."
+      )
+    );
+  }
 
   await verifyPasswordOrThrow(req.user._id, password, req);
 
@@ -116,7 +127,9 @@ export const createPaymentAccount = asyncErrorHandler(async (req, res, next) => 
   }
 
   // If a QR image is attached, require explicit confirmation that the owner checked the decoded QR (S4)
-  if (qrSha256 || qrImageKey) {
+  // and resolve it strictly from R2 storage (Problem 1)
+  let resolvedQr = null;
+  if (qrImageKey) {
     if (qrChecked !== true && qrChecked !== "true") {
       return next(
         new CustomError(
@@ -125,6 +138,7 @@ export const createPaymentAccount = asyncErrorHandler(async (req, res, next) => 
         )
       );
     }
+    resolvedQr = await verifyAndResolveQrKey(qrImageKey);
   }
 
   const existingAccount = await PaymentAccount.findOne({ provider });
@@ -148,10 +162,10 @@ export const createPaymentAccount = asyncErrorHandler(async (req, res, next) => 
       accountNumber,
       brandColor: brandColor || "#0B0B45",
       textColor: textColor || "#FFFFFF",
-      qrImageUrl: qrImageUrl || null,
-      qrImageKey: qrImageKey || null,
-      qrSha256: qrSha256 || null,
-      qrDecodedText: qrDecodedText || null,
+      qrImageUrl: resolvedQr?.url || null,
+      qrImageKey: resolvedQr?.key || null,
+      qrSha256: resolvedQr?.sha256 || null,
+      qrDecodedText: resolvedQr?.decodedText || null,
       sortOrder: Number(sortOrder) || 0,
       version: 1,
       isActive: true,
@@ -201,7 +215,7 @@ export const createPaymentAccount = asyncErrorHandler(async (req, res, next) => 
           details: {
             provider,
             accountNumber,
-            hasQr: Boolean(qrSha256),
+            hasQr: Boolean(createdAccount.qrSha256),
           },
         },
       ],
@@ -253,14 +267,25 @@ export const updatePaymentAccount = asyncErrorHandler(async (req, res, next) => 
     accountNumber,
     brandColor,
     textColor,
-    qrImageUrl,
     qrImageKey,
-    qrSha256,
-    qrDecodedText,
     qrChecked,
     sortOrder,
     isActive,
   } = req.body;
+
+  // Reject client-provided QR URLs, hashes, or decoded text (Problem 1)
+  if (
+    req.body.qrImageUrl !== undefined ||
+    req.body.qrSha256 !== undefined ||
+    req.body.qrDecodedText !== undefined
+  ) {
+    return next(
+      new CustomError(
+        400,
+        "Client cannot provide qrImageUrl, qrSha256, or qrDecodedText. Only qrImageKey is allowed."
+      )
+    );
+  }
 
   await verifyPasswordOrThrow(req.user._id, password, req);
 
@@ -271,19 +296,28 @@ export const updatePaymentAccount = asyncErrorHandler(async (req, res, next) => 
 
   const beforeSnapshot = account.toObject();
 
-  // If QR image changed, enforce check confirmation (S4)
-  const isQrChanged =
-    (qrSha256 !== undefined && qrSha256 !== account.qrSha256) ||
-    (qrImageKey !== undefined && qrImageKey !== account.qrImageKey);
+  // If QR image changed, enforce check confirmation (S4) and resolve strictly from R2 (Problem 1)
+  let isQrChanged = false;
+  let resolvedQr = null;
 
-  if (isQrChanged && qrSha256) {
-    if (qrChecked !== true && qrChecked !== "true") {
-      return next(
-        new CustomError(
-          400,
-          "You must tick 'I checked the account in the decoded QR' before saving a new QR code"
-        )
-      );
+  if (qrImageKey !== undefined) {
+    if (qrImageKey === null || qrImageKey === "") {
+      if (account.qrImageKey !== null) {
+        isQrChanged = true;
+      }
+    } else {
+      if (qrImageKey !== account.qrImageKey) {
+        isQrChanged = true;
+        if (qrChecked !== true && qrChecked !== "true") {
+          return next(
+            new CustomError(
+              400,
+              "You must tick 'I checked the account in the decoded QR' before saving a new QR code"
+            )
+          );
+        }
+        resolvedQr = await verifyAndResolveQrKey(qrImageKey);
+      }
     }
   }
 
@@ -300,10 +334,19 @@ export const updatePaymentAccount = asyncErrorHandler(async (req, res, next) => 
     if (sortOrder !== undefined) account.sortOrder = Number(sortOrder);
     if (isActive !== undefined) account.isActive = Boolean(isActive);
 
-    if (qrImageUrl !== undefined) account.qrImageUrl = qrImageUrl;
-    if (qrImageKey !== undefined) account.qrImageKey = qrImageKey;
-    if (qrSha256 !== undefined) account.qrSha256 = qrSha256;
-    if (qrDecodedText !== undefined) account.qrDecodedText = qrDecodedText;
+    if (qrImageKey !== undefined) {
+      if (qrImageKey === null || qrImageKey === "") {
+        account.qrImageUrl = null;
+        account.qrImageKey = null;
+        account.qrSha256 = null;
+        account.qrDecodedText = null;
+      } else if (resolvedQr) {
+        account.qrImageUrl = resolvedQr.url;
+        account.qrImageKey = resolvedQr.key;
+        account.qrSha256 = resolvedQr.sha256;
+        account.qrDecodedText = resolvedQr.decodedText;
+      }
+    }
 
     account.version = nextVersion;
     account.updatedBy = req.user._id;
@@ -659,9 +702,17 @@ export const getSecurityAuditLogs = asyncErrorHandler(async (req, res, next) => 
  * Fetch alerts for owner notification banner (S8).
  */
 export const getSecurityAlerts = asyncErrorHandler(async (req, res, next) => {
-  const alerts = await SecurityAlert.find()
-    .sort({ createdAt: -1 })
-    .limit(50);
+  const unacknowledgedOnly = String(req.query.unacknowledgedOnly) === "true";
+  const limitNum = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 50));
+
+  // "Unacknowledged" is per owner: alerts this owner has not acknowledged yet
+  const notAckedByMe = { "acknowledgedBy.adminId": { $ne: req.user._id } };
+  const filter = unacknowledgedOnly ? notAckedByMe : {};
+
+  const [alerts, unacknowledgedCount] = await Promise.all([
+    SecurityAlert.find(filter).sort({ createdAt: -1 }).limit(limitNum),
+    SecurityAlert.countDocuments(notAckedByMe),
+  ]);
 
   const adminIdStr = req.user._id.toString();
 
@@ -678,9 +729,61 @@ export const getSecurityAlerts = asyncErrorHandler(async (req, res, next) => {
   res.status(200).json({
     success: true,
     message: "Security alerts fetched successfully",
+    unacknowledgedCount,
     data: formatted,
   });
 });
+
+/**
+ * 9b. POST /api/v1/security-alerts/ack-all
+ * Owner acknowledges every alert they have not acknowledged yet.
+ * Needs the password again, so a stolen session cannot hide all alerts in one click.
+ */
+export const acknowledgeAllSecurityAlerts = asyncErrorHandler(
+  async (req, res, next) => {
+    await verifyPasswordOrThrow(req.user._id, req.body?.password, req);
+
+    const notAckedByMe = { "acknowledgedBy.adminId": { $ne: req.user._id } };
+    const pending = await SecurityAlert.find(notAckedByMe).select("_id type");
+
+    if (pending.length > 0) {
+      await SecurityAlert.updateMany(
+        { _id: { $in: pending.map((a) => a._id) } },
+        {
+          $push: {
+            acknowledgedBy: {
+              adminId: req.user._id,
+              adminName: req.user.name,
+              acknowledgedAt: new Date(),
+            },
+          },
+        }
+      );
+
+      await SecurityAuditLog.create({
+        action: "ALERT_ACK",
+        entity: "securityAlert",
+        entityId: req.user._id,
+        adminId: req.user._id,
+        adminName: req.user.name,
+        ip: getClientIp(req),
+        userAgent: getUserAgent(req),
+        details: {
+          bulk: true,
+          count: pending.length,
+          alertIds: pending.map((a) => a._id),
+          alertTypes: [...new Set(pending.map((a) => a.type))],
+        },
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `${pending.length} security alert(s) acknowledged successfully`,
+      data: { acknowledgedCount: pending.length },
+    });
+  }
+);
 
 /**
  * 9. POST /api/v1/security-alerts/:id/ack
