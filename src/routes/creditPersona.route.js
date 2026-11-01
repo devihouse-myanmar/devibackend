@@ -4,6 +4,7 @@ import {
   getAllCreditPersons,
   getCreditPersonById,
   updateCreditPerson,
+  updateCreditPersonFreeDelivery,
 } from "../controllers/creditPersona.controller.js";
 import { protect } from "../controllers/administrationPolicy.controller.js";
 import { permissionGranted } from "../controllers/administrationPolicy.controller.js";
@@ -33,5 +34,12 @@ router.patch(
   protect,
   permissionGranted("owner", "warehouse"),
   updateCreditPerson
+);
+// Free delivery customer flag (owner and admin only - D9)
+router.patch(
+  "/credit-persona/:id/free-delivery",
+  protect,
+  permissionGranted("owner", "admin"),
+  updateCreditPersonFreeDelivery
 );
 export default router;

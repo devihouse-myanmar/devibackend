@@ -1,6 +1,7 @@
 import express from "express";
 import uploadPaymentScreenshot from "../middlewares/multerSlipUpload.middleware.js";
 import trackOrderRateLimiter from "../middlewares/trackOrderRateLimiter.middleware.js";
+import deliveryQuoteRateLimiter from "../middlewares/deliveryQuoteRateLimiter.middleware.js";
 import {
   createEcommerceOrder,
   getEcommerceOrderTrack,
@@ -8,6 +9,8 @@ import {
   getEcommerceProducts,
   getEcommerceProductById,
   getEcommerceFilters,
+  getDeliveryOptions,
+  getDeliveryQuote,
 } from "../controllers/ecommerce.controller.js";
 import {
   getPublicHomeSections,
@@ -40,6 +43,16 @@ router.post("/ecommerce/orders/track", trackOrderRateLimiter, getEcommerceOrderT
 
 // 5. Get E-commerce Store Info & Supported Payment Providers
 router.get("/ecommerce/store-info", getEcommerceStoreInfo);
+
+// 5b. Get Public Delivery Options (Townships list & Car Gate settings)
+router.get("/ecommerce/delivery-options", getDeliveryOptions);
+
+// 5c. Get Public Delivery Quote for Checkout (Cash Down only)
+router.post(
+  "/ecommerce/delivery-quote",
+  deliveryQuoteRateLimiter,
+  getDeliveryQuote,
+);
 
 // 6. Home page product sections (active only, 3 designs each)
 router.get("/ecommerce/home-sections", getPublicHomeSections);

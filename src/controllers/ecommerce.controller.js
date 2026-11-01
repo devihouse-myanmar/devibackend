@@ -14,9 +14,15 @@ import NodeCache from "node-cache";
 import HomeSection from "../models/homeSection.model.js";
 import { resolveSectionDesigns } from "./homeSection.controller.js";
 import {
+  resolveDeliveryFee,
+  getCachedActiveTownships,
+  getCachedDeliverySettings,
+} from "../services/deliveryFee.service.js";
+import {
   uploadToR2,
   generateR2Key,
 } from "../configs/cloudflareR2.config.js";
+import PaymentAccount from "../models/paymentAccount.model.js";
 
 // Phones are stored as typed at checkout, so compare in E.164 when parseable, else digits-only
 const normalizePhoneForMatch = (phone) =>
@@ -64,11 +70,16 @@ export const createEcommerceOrder = asyncErrorHandler(
       city = "Yangon",
       deliMethod,
       gateName = "",
+      carGateDestination = "",
+      destination = "",
+      busLine = "",
+      receiverName = "",
+      receiverPhone = "",
       paymentMethod,
       paymentProvider,
       items,
       note = "",
-      deliFee = 0,
+      deliFee = 0, // Ignored per D2: server decides the fee
     } = req.body;
 
     // Validate Customer Info
@@ -77,12 +88,6 @@ export const createEcommerceOrder = asyncErrorHandler(
     }
     if (!phone || !phone.trim()) {
       return next(new CustomError(400, "Phone number is required"));
-    }
-    if (!address || !address.trim()) {
-      return next(new CustomError(400, "Delivery address is required"));
-    }
-    if (!township || !township.trim()) {
-      return next(new CustomError(400, "Township is required"));
     }
 
     // Validate Delivery Method
@@ -100,13 +105,32 @@ export const createEcommerceOrder = asyncErrorHandler(
       );
     }
 
-    if (normalizedDeliMethod === "car_gate" && (!gateName || !gateName.trim())) {
-      return next(
-        new CustomError(
-          400,
-          "Gate name (ကားဂိတ်အမည်) is required when delivery method is car-gate",
-        ),
-      );
+    // Validation per Delivery Method
+    const effectiveDestination = (carGateDestination || destination || "").trim();
+    if (normalizedDeliMethod === "deli_service") {
+      if (!address || !address.trim()) {
+        return next(new CustomError(400, "Delivery address is required for home delivery"));
+      }
+      if (!township || !township.trim()) {
+        return next(new CustomError(400, "Township is required for home delivery"));
+      }
+    } else if (normalizedDeliMethod === "car_gate") {
+      if (!gateName || !gateName.trim()) {
+        return next(
+          new CustomError(
+            400,
+            "Gate name (ကားဂိတ်အမည်) is required when delivery method is car-gate",
+          ),
+        );
+      }
+      if (!effectiveDestination) {
+        return next(
+          new CustomError(
+            400,
+            "Destination city/town (ပို့ရမည့် မြို့) is required when delivery method is car-gate",
+          ),
+        );
+      }
     }
 
     // Validate Payment Method
@@ -145,6 +169,7 @@ export const createEcommerceOrder = asyncErrorHandler(
     let screenshotUrl = null;
     let screenshotKey = null;
     let paymentStatus = "unpaid";
+    let accountSnapshot = null;
 
     if (normalizedPaymentMethod === "cash_down") {
       normalizedPaymentProvider = (paymentProvider || "")
@@ -164,6 +189,31 @@ export const createEcommerceOrder = asyncErrorHandler(
           ),
         );
       }
+
+      // S9: Validate active PaymentAccount in DB
+      const activeAccount = await PaymentAccount.findOne({
+        provider: normalizedPaymentProvider,
+        isActive: true,
+      });
+
+      if (!activeAccount) {
+        return next(
+          new CustomError(
+            400,
+            `Payment provider '${normalizedPaymentProvider}' is not currently active for cash down payment. Please select an active provider.`,
+          ),
+        );
+      }
+
+      accountSnapshot = {
+        accountId: activeAccount._id,
+        version: activeAccount.version,
+        provider: activeAccount.provider,
+        displayName: activeAccount.displayName,
+        accountName: activeAccount.accountName,
+        accountNumber: activeAccount.accountNumber,
+        qrSha256: activeAccount.qrSha256,
+      };
 
       // Check payment screenshot file
       if (!req.file) {
@@ -263,8 +313,16 @@ export const createEcommerceOrder = asyncErrorHandler(
       });
     }
 
-    const numericDeliFee = Math.max(0, Number(deliFee) || 0);
-    const finalAmount = subTotal + numericDeliFee;
+    // Server resolves the delivery fee (D2: ignore any client-sent deliFee)
+    const feeResult = await resolveDeliveryFee({
+      paymentMethod: normalizedPaymentMethod,
+      deliMethod: normalizedDeliMethod,
+      township: (township && township.trim()) || "",
+      phone: (phone && phone.trim()) || "",
+    });
+
+    const finalDeliFee = feeResult.fee;
+    const finalAmount = subTotal + finalDeliFee;
 
     // Deduct stock strictly for SF-ECOMMERCE storefront
     for (const item of ordersProducts) {
@@ -280,9 +338,9 @@ export const createEcommerceOrder = asyncErrorHandler(
       const customerPhone = phone.trim();
       const customerName = name.trim();
       const customerAddress = [
-        address.trim(),
-        township.trim(),
-        city && city.trim(),
+        (address && address.trim()) || "",
+        (township && township.trim()) || "",
+        effectiveDestination || (city && city.trim()),
       ]
         .filter(Boolean)
         .join(", ");
@@ -324,7 +382,7 @@ export const createEcommerceOrder = asyncErrorHandler(
     // Generate Ecommerce Order Number (ECO-YYYY-MM-DD-NNNNNN)
     const orderNumber = await Order.generateOrderNumber(new Date(), "ECO");
 
-    // Create Order Record
+    // Create Order Record with full delivery snapshot (D7)
     const newOrder = await Order.create({
       orderNumber,
       orderSource: "ecommerce",
@@ -341,14 +399,32 @@ export const createEcommerceOrder = asyncErrorHandler(
       customerInfo: {
         name: name.trim(),
         phone: phone.trim(),
-        address: address.trim(),
-        township: township.trim(),
-        city: (city && city.trim()) || "Yangon",
+        address: (address && address.trim()) || "",
+        township: (township && township.trim()) || "",
+        city:
+          normalizedDeliMethod === "car_gate"
+            ? effectiveDestination || (city && city.trim()) || "Yangon"
+            : (city && city.trim()) || "Yangon",
       },
       deliveryInfo: {
         deliMethod: normalizedDeliMethod,
-        gateName: (gateName && gateName.trim()) || "",
-        deliFee: numericDeliFee,
+        gateName:
+          normalizedDeliMethod === "car_gate" ? (gateName && gateName.trim()) || "" : "",
+        deliFee: finalDeliFee,
+        feeSource: feeResult.feeSource,
+        feePending: feeResult.feePending,
+        calculatedDeliFee: finalDeliFee,
+        carGate:
+          normalizedDeliMethod === "car_gate"
+            ? {
+                gateName: (gateName && gateName.trim()) || "",
+                destination: effectiveDestination,
+                busLine: (busLine && busLine.trim()) || "",
+                receiverName: (receiverName && receiverName.trim()) || name.trim(),
+                receiverPhone: (receiverPhone && receiverPhone.trim()) || phone.trim(),
+              }
+            : undefined,
+        feeAdjustments: [],
       },
       paymentInfo: {
         paymentMethod: normalizedPaymentMethod,
@@ -356,6 +432,8 @@ export const createEcommerceOrder = asyncErrorHandler(
         paymentScreenshot: screenshotUrl,
         paymentScreenshotKey: screenshotKey,
         paymentStatus,
+        accountSnapshot:
+          normalizedPaymentMethod === "cash_down" ? accountSnapshot : null,
       },
       paymentType: "paid",
       paymentMethod: normalizedPaymentMethod,
@@ -369,7 +447,7 @@ export const createEcommerceOrder = asyncErrorHandler(
         select:
           "productName productCode color size category images sellingPrice",
       })
-      .populate("creditPersonId", "name phone address blacklist blacklistReason");
+      .populate("creditPersonId", "name phone address blacklist blacklistReason freeDelivery");
 
     res.status(201).json({
       status: "success",
@@ -382,7 +460,7 @@ export const createEcommerceOrder = asyncErrorHandler(
         paymentInfo: populatedOrder.paymentInfo,
         ordersProducts: populatedOrder.ordersProducts,
         subTotal: populatedOrder.subTotal,
-        deliFee: numericDeliFee,
+        deliFee: finalDeliFee,
         finalAmount: populatedOrder.finalAmount,
         orderStatus: populatedOrder.orderStatus,
         createdAt: populatedOrder.createdAt,
@@ -438,6 +516,19 @@ export const getEcommerceOrderTrack = asyncErrorHandler(
         deliveryInfo: {
           deliMethod: order.deliveryInfo?.deliMethod,
           gateName: order.deliveryInfo?.gateName,
+          feePending: Boolean(order.deliveryInfo?.feePending),
+          feeSource: order.deliveryInfo?.feeSource || null,
+          carGate: order.deliveryInfo?.carGate
+            ? {
+                gateName: order.deliveryInfo.carGate.gateName,
+                destination: order.deliveryInfo.carGate.destination,
+                busLine: order.deliveryInfo.carGate.busLine,
+                receiverName: order.deliveryInfo.carGate.receiverName,
+                receiverPhone: maskPhone(
+                  order.deliveryInfo.carGate.receiverPhone,
+                ),
+              }
+            : null,
         },
         paymentInfo: {
           paymentMethod: order.paymentInfo?.paymentMethod,
@@ -930,3 +1021,47 @@ export const getEcommerceProductById = asyncErrorHandler(
     });
   },
 );
+
+// 6. Get Public Delivery Options (Townships list & Car Gate settings)
+export const getDeliveryOptions = asyncErrorHandler(async (req, res, next) => {
+  const townships = await getCachedActiveTownships();
+  const settings = await getCachedDeliverySettings();
+
+  const townshipList = townships.map((t) => ({
+    township: t.township,
+    fee: t.fee,
+  }));
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      townships: townshipList,
+      carGate: {
+        fee: settings.carGateFee || 0,
+        note:
+          settings.carGateNote ||
+          "ကားဂိတ်ခကို ပစ္စည်းရောက်ရှိချိန်တွင် ပေးချေရပါမည်",
+      },
+    },
+  });
+});
+
+// 7. Get Public Delivery Quote for Checkout (Cash Down only, never reveals free customer reason)
+export const getDeliveryQuote = asyncErrorHandler(async (req, res, next) => {
+  const { paymentMethod, deliMethod, township, phone } = req.body || {};
+
+  const quote = await resolveDeliveryFee({
+    paymentMethod,
+    deliMethod,
+    township,
+    phone,
+  });
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      fee: quote.fee,
+      feePending: quote.feePending,
+    },
+  });
+});

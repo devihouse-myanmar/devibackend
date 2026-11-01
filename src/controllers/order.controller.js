@@ -2051,3 +2051,117 @@ const restockCancelledEcommerceOrder = async (order, adminId, session) => {
   }
 };
 
+// Staff Adjustment (A): PATCH /order/:orderId/delivery-fee
+export const updateOrderDeliveryFee = asyncErrorHandler(
+  async (req, res, next) => {
+    const { orderId } = req.params;
+    const { deliFee, reason } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return next(new CustomError(400, "Invalid order ID format"));
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order || order.isDeleted) {
+      return next(new CustomError(404, "Order not found"));
+    }
+
+    // Only e-commerce orders (D8)
+    if (order.orderSource !== "ecommerce") {
+      return next(
+        new CustomError(
+          400,
+          "Only e-commerce orders can have their delivery fee adjusted",
+        ),
+      );
+    }
+
+    // Only pending or confirmed status allowed (D8)
+    const allowedStatuses = ["pending", "confirmed"];
+    if (!allowedStatuses.includes(order.orderStatus)) {
+      return next(
+        new CustomError(
+          400,
+          `Cannot adjust delivery fee for order in '${order.orderStatus}' status. Allowed statuses: pending, confirmed`,
+        ),
+      );
+    }
+
+    // Validate deliFee
+    if (deliFee === undefined || deliFee === null || isNaN(Number(deliFee))) {
+      return next(new CustomError(400, "Delivery fee must be a valid number"));
+    }
+    const newDeliFee = Number(deliFee);
+    if (newDeliFee < 0) {
+      return next(new CustomError(400, "Delivery fee cannot be negative"));
+    }
+
+    // Validate reason
+    if (
+      !reason ||
+      typeof reason !== "string" ||
+      !reason.trim() ||
+      reason.trim().length > 200
+    ) {
+      return next(
+        new CustomError(
+          400,
+          "A valid reason is required (1 to 200 characters)",
+        ),
+      );
+    }
+
+    const oldDeliFee = order.deliveryInfo?.deliFee || 0;
+
+    if (!order.deliveryInfo) {
+      order.deliveryInfo = {
+        deliMethod: "deli_service",
+        gateName: "",
+        deliFee: 0,
+      };
+    }
+    if (!Array.isArray(order.deliveryInfo.feeAdjustments)) {
+      order.deliveryInfo.feeAdjustments = [];
+    }
+
+    // Record adjustment entry in history
+    order.deliveryInfo.feeAdjustments.push({
+      from: oldDeliFee,
+      to: newDeliFee,
+      reason: reason.trim(),
+      by: req.user._id,
+      at: new Date(),
+    });
+
+    order.deliveryInfo.deliFee = newDeliFee;
+    order.deliveryInfo.feeSource = "manual";
+    order.deliveryInfo.feePending = false;
+
+    // Recalculate finalAmount following existing formula
+    const subTotal = order.subTotal || 0;
+    const discount = order.discount || 0;
+    const tax = order.tax || 0;
+    order.finalAmount = subTotal - discount + tax + newDeliFee;
+
+    await order.save();
+
+    // Check paid amount mismatch for prepaid orders that are already paid (D8)
+    const isPaidPrepaid =
+      order.paymentInfo?.paymentMethod === "cash_down" &&
+      order.paymentInfo?.paymentStatus === "paid";
+    const paidAmountMismatch = isPaidPrepaid && order.paidAmount !== order.finalAmount;
+
+    const populatedOrder = await Order.findById(order._id)
+      .populate("soldBy", "name")
+      .populate("creditPersonId", "name phone address")
+      .populate("deliveryInfo.feeAdjustments.by", "name role");
+
+    res.status(200).json({
+      success: true,
+      message: "Order delivery fee updated successfully",
+      paidAmountMismatch: Boolean(paidAmountMismatch),
+      data: populatedOrder,
+    });
+  },
+);
+

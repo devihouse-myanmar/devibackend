@@ -140,6 +140,29 @@ const orderSchema = new mongoose.Schema(
       },
       gateName: { type: String, trim: true, default: "" },
       deliFee: { type: Number, default: 0, min: 0 },
+      feeSource: {
+        type: String,
+        enum: ["cod", "township", "carGate", "freeCustomer", "pending", "manual", null],
+        default: null,
+      },
+      feePending: { type: Boolean, default: false },
+      calculatedDeliFee: { type: Number, default: null },
+      carGate: {
+        gateName: { type: String, trim: true, default: "" },
+        destination: { type: String, trim: true, default: "" },
+        busLine: { type: String, trim: true, default: "" },
+        receiverName: { type: String, trim: true, default: "" },
+        receiverPhone: { type: String, trim: true, default: "" },
+      },
+      feeAdjustments: [
+        {
+          from: { type: Number, default: 0 },
+          to: { type: Number, default: 0 },
+          reason: { type: String, trim: true, default: "" },
+          by: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
+          at: { type: Date, default: Date.now },
+        },
+      ],
     },
     paymentInfo: {
       paymentMethod: {
@@ -158,6 +181,15 @@ const orderSchema = new mongoose.Schema(
         type: String,
         enum: ["unpaid", "pending_verification", "paid", "refunded"],
         default: "unpaid",
+      },
+      accountSnapshot: {
+        accountId: { type: mongoose.Schema.Types.ObjectId, ref: "PaymentAccount", default: null },
+        version: { type: Number, default: null },
+        provider: { type: String, default: null },
+        displayName: { type: String, default: null },
+        accountName: { type: String, default: null },
+        accountNumber: { type: String, default: null },
+        qrSha256: { type: String, default: null },
       },
     },
     isDeleted: {

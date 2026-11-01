@@ -57,3 +57,31 @@ export const updateCreditPerson = asyncErrorHandler(async (req, res, next) => {
     data: creditPerson,
   });
 });
+
+// PATCH /credit-persona/:id/free-delivery - Update customer free delivery flag (owner/admin only)
+export const updateCreditPersonFreeDelivery = asyncErrorHandler(
+  async (req, res, next) => {
+    const { id } = req.params;
+    const { freeDelivery, note } = req.body;
+
+    const creditPerson = await CreditPerson.findById(id);
+    if (!creditPerson) {
+      return next(new CustomError(404, "Credit person not found"));
+    }
+
+    creditPerson.freeDelivery = Boolean(freeDelivery);
+    if (note !== undefined) {
+      creditPerson.freeDeliveryNote = String(note || "").trim();
+    }
+    creditPerson.freeDeliveryUpdatedBy = req.user._id;
+    creditPerson.freeDeliveryUpdatedAt = new Date();
+
+    await creditPerson.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Customer free delivery ${creditPerson.freeDelivery ? "enabled" : "disabled"} successfully`,
+      data: creditPerson,
+    });
+  }
+);

@@ -81,6 +81,7 @@ export const getSaleReportByStorefrontId = asyncErrorHandler(
           totalSubTotal: { $sum: "$subTotal" },
           totalTax: { $sum: "$tax" },
           totalDiscount: { $sum: "$discount" },
+          totalDeliFee: { $sum: { $ifNull: ["$deliveryInfo.deliFee", 0] } },
           totalItemDiscount: {
             $sum: {
               $reduce: {
@@ -119,6 +120,7 @@ export const getSaleReportByStorefrontId = asyncErrorHandler(
       totalSubTotal: 0,
       totalTax: 0,
       totalDiscount: 0,
+      totalDeliFee: 0,
       totalItemDiscount: 0,
       totalExtraChange: 0,
       orderCount: 0,
@@ -150,6 +152,7 @@ export const getSaleReportByStorefrontId = asyncErrorHandler(
           subTotal: report.totalSubTotal,
           tax: report.totalTax,
           discount: report.totalDiscount,
+          totalDeliFee: report.totalDeliFee || 0,
           totalItemDiscount: report.totalItemDiscount || 0,
           extraChange: report.totalExtraChange,
           orderCount: report.orderCount,

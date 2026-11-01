@@ -325,8 +325,10 @@
 | `GET` | `/ecommerce/products` | Public | Get public catalog with stock & design grouping, including `originalPrice`, `price`, `sellingPrice` (discounted), and `discountLabel`. Query params: `pattern` (comma-separated categories), `size`, `sort` (`newest` \| `discount` \| `popular` \| `priceAsc` \| `priceDesc`), `search`, `category`, `page`, `limit`, `inStockOnly`. |
 | `GET` | `/ecommerce/filters` | Public | Get distinct in-stock `patterns` (categories), `sizes`, and active `sections` with available stock for catalog filtering (cached 5 minutes). |
 | `GET` | `/ecommerce/products/:id` | Public | Get single product and available color variants with per-variant discount and pricing. |
-| `POST` | `/ecommerce/orders` | Public | Place customer e-commerce order (server recalculates discounted pricing automatically). |
-| `POST` | `/ecommerce/orders/track` | Public | Track order status by order number and phone; includes `originalUnitPrice` and `itemDiscount`. |
+| `POST` | `/ecommerce/orders` | Public | Place customer e-commerce order (server recalculates discounted pricing automatically, verifies delivery fees per method, and snapshots delivery details). Supports `deli_service` and `car_gate`. |
+| `POST` | `/ecommerce/orders/track` | Public | Track order status by order number and phone; includes `originalUnitPrice`, `itemDiscount`, `deliveryInfo` (`deliMethod`, `gateName`, `feePending`, `feeSource`, `carGate`). |
+| `GET` | `/ecommerce/delivery-options` | Public | Get active delivery townships list (with fees) and car gate settings (`carGateFee`, `carGateNote`). |
+| `POST` | `/ecommerce/delivery-quote` | Public (Rate-limited) | Calculate delivery fee quote for cash down checkout without revealing customer free-delivery reasons. Body: `{ paymentMethod, deliMethod, township, phone }`. |
 | `GET` | `/ecommerce/store-info` | Public | Retrieve public store information and supported payment methods. |
 | `GET` | `/ecommerce/home-sections` | Public | Active home page sections in display order, each with `title`, `description`, `buttonLabel`, `slug`, `source` and up to 3 `designs` (same card shape as `/ecommerce/products`). Sections with no in-stock designs are left out. |
 | `GET` | `/ecommerce/home-sections/:slug/products` | Public | All designs of one active section (`?page`, `?limit` max 50, `?pattern`, `?size`, `?q`), plus the `section` heading data. Used by the online shop's `/products?section=<slug>`. |
@@ -347,6 +349,24 @@ A section picks its designs (`Inventory.category` values with SF-ECOMMERCE stock
 | `POST` | `/home-sections/preview` | `owner`, `admin` | Return the designs an unsaved section would show (same body as create). Nothing is stored. |
 | `PATCH` | `/home-sections/:id` | `owner`, `admin` | Update any of the create fields. |
 | `DELETE` | `/home-sections/:id` | `owner`, `admin` | Delete a section. |
+
+---
+
+## 22. Delivery & Township Management (Admin)
+
+**Base Path:** `/api/v1`
+
+| Method | Endpoint | Access / Roles | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/delivery-townships` | `owner`, `admin` | List all delivery townships with fees, active state, and sort order. |
+| `POST` | `/delivery-townships` | `owner`, `admin` | Create a new delivery township. Body: `{ township, city, fee, isActive, sortOrder }`. |
+| `PATCH` | `/delivery-townships/bulk` | `owner`, `admin` | Bulk update township fees and active state. Body: `{ updates: [{ id, fee, isActive, sortOrder }] }`. |
+| `PATCH` | `/delivery-townships/:id` | `owner`, `admin` | Update single township fee, active status, or sort order. |
+| `DELETE` | `/delivery-townships/:id` | `owner`, `admin` | Delete a delivery township. |
+| `GET` | `/delivery-settings` | `owner`, `admin` | Get delivery settings: `carGateFee`, `carGateNote`. |
+| `PATCH` | `/delivery-settings` | `owner`, `admin` | Update delivery settings (`carGateFee`, `carGateNote`). Clears cache. |
+| `PATCH` | `/credit-persona/:id/free-delivery` | `owner`, `admin` | Toggle customer free delivery status. Body: `{ freeDelivery: boolean, note: string }`. |
+| `PATCH` | `/order/:orderId/delivery-fee` | `owner`, `admin`, `cashier` | Staff adjustment for ecommerce orders in `pending` or `confirmed`. Body: `{ deliFee: number, reason: string }`. |
 
 ---
 

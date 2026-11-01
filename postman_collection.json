@@ -3307,6 +3307,248 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Delivery & Townships",
+      "description": "Township delivery fee configuration, car gate settings, and delivery quotes",
+      "item": [
+        {
+          "name": "Get Public Delivery Options",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/ecommerce/delivery-options",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "ecommerce",
+                "delivery-options"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Delivery Quote",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentMethod\": \"cash_down\",\n  \"deliMethod\": \"deli_service\",\n  \"township\": \"ကမာရွတ်\",\n  \"phone\": \"09798938874\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/ecommerce/delivery-quote",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "ecommerce",
+                "delivery-quote"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get All Delivery Townships (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/delivery-townships",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "delivery-townships"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Delivery Township (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fee\": 2500,\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/delivery-townships/{{townshipId}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "delivery-townships",
+                "{{townshipId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Bulk Update Delivery Townships (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"updates\": [\n    {\n      \"id\": \"{{townshipId}}\",\n      \"fee\": 3000\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/delivery-townships/bulk",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "delivery-townships",
+                "bulk"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Delivery Settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/delivery-settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "delivery-settings"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Delivery Settings",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"carGateFee\": 0,\n  \"carGateNote\": \"ကားဂိတ်ခကို ပစ္စည်းရောက်ရှိချိန်တွင် ပေးချေရပါမည်\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/delivery-settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "delivery-settings"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Customer Free Delivery Flag",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"freeDelivery\": true,\n  \"note\": \"VIP Customer\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/credit-persona/{{creditPersonId}}/free-delivery",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "credit-persona",
+                "{{creditPersonId}}",
+                "free-delivery"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Staff Adjust Order Delivery Fee",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deliFee\": 3500,\n  \"reason\": \"Customer requested express courier\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/order/{{orderId}}/delivery-fee",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "order",
+                "{{orderId}}",
+                "delivery-fee"
+              ]
+            }
+          }
+        }
+      ]
     }
   ],
   "variable": [

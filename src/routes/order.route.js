@@ -11,6 +11,7 @@ import {
   hardDeleteOrder,
   updateEntireOrder,
   updateOrderStatusAndPayment,
+  updateOrderDeliveryFee,
 } from "../controllers/order.controller.js";
 
 const router = express.Router();
@@ -49,6 +50,13 @@ router.patch(
   protect,
   permissionGranted("owner", "admin", "cashier"),
   updateOrderStatusAndPayment
+);
+// Adjust delivery fee for ecommerce orders (owner, admin, cashier - D9)
+router.patch(
+  "/order/:orderId/delivery-fee",
+  protect,
+  permissionGranted("owner", "admin", "cashier"),
+  updateOrderDeliveryFee
 );
 router.get(
   "/order/storefront/:storefrontId",

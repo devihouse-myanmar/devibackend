@@ -98,6 +98,14 @@ const shopSettingSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    delivery: {
+      carGateFee: { type: Number, min: 0, default: 0 },
+      carGateNote: {
+        type: String,
+        trim: true,
+        default: "ကားဂိတ်ခကို ပစ္စည်းရောက်ရှိချိန်တွင် ပေးချေရပါမည်",
+      },
+    },
     updatedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Admin",

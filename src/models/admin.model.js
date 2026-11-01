@@ -36,6 +36,14 @@ const adminSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  stepUpFailures: {
+    type: Number,
+    default: 0,
+  },
+  stepUpLockedUntil: {
+    type: Date,
+    default: null,
+  },
 
   softDeleted: {
     type: Boolean,

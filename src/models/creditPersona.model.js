@@ -26,6 +26,24 @@ const creditPersonSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    freeDelivery: {
+      type: Boolean,
+      default: false,
+    },
+    freeDeliveryNote: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    freeDeliveryUpdatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Admin",
+      default: null,
+    },
+    freeDeliveryUpdatedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
