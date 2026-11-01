@@ -88,11 +88,11 @@ export const getSaleReportByStorefrontId = asyncErrorHandler(
                 initialValue: 0,
                 in: {
                   $add: [
-                    "$value",
+                    "$$value",
                     {
                       $multiply: [
-                        { $ifNull: ["$this.itemDiscount.amount", 0] },
-                        { $ifNull: ["$this.quantity", 0] },
+                        { $ifNull: ["$$this.itemDiscount.amount", 0] },
+                        { $ifNull: ["$$this.quantity", 0] },
                       ],
                     },
                   ],
