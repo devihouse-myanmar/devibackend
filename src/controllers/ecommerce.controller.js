@@ -9,6 +9,10 @@ import { asyncErrorHandler } from "../utils/asyncErrorHandler.js";
 import CustomError from "../utils/customError.js";
 import { formatPhoneNumber } from "../utils/phoneValidation.utils.js";
 import { resolveUnitPrice } from "../utils/pricing.utils.js";
+import { getEcommerceDesigns } from "../services/ecommerceCatalog.service.js";
+import NodeCache from "node-cache";
+import HomeSection from "../models/homeSection.model.js";
+import { resolveSectionDesigns } from "./homeSection.controller.js";
 import {
   uploadToR2,
   generateR2Key,
@@ -507,12 +511,57 @@ export const getEcommerceStoreInfo = asyncErrorHandler(
 // 4. Get Public E-commerce Products with Stock & Design-Level Grouping (Tokenless)
 export const getEcommerceProducts = asyncErrorHandler(
   async (req, res, next) => {
-    const { category, search, inStockOnly = "true", groupBy = "design", page = 1, limit = 12 } = req.query;
+    const {
+      category,
+      search,
+      pattern,
+      size,
+      sort,
+      inStockOnly = "true",
+      groupBy = "design",
+      page = 1,
+      limit = 12,
+    } = req.query;
 
     const ecommerceStore = await getOrCreateEcommerceStorefront();
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, parseInt(limit, 10) || 12);
+
+    if (groupBy === "design") {
+      let categories = undefined;
+      if (pattern && typeof pattern === "string") {
+        categories = pattern
+          .split(",")
+          .map((p) => p.trim())
+          .filter(Boolean);
+        if (categories.length === 0) categories = undefined;
+      }
+
+      const validSorts = ["newest", "discount", "popular", "priceAsc", "priceDesc"];
+      const effectiveSort = validSorts.includes(sort) ? sort : "newest";
+
+      const { total, data } = await getEcommerceDesigns({
+        storefrontId: ecommerceStore._id,
+        category,
+        search,
+        categories,
+        size: size && typeof size === "string" ? size.trim() : undefined,
+        sort: effectiveSort,
+        inStockOnly: inStockOnly !== "false",
+        page: pageNum,
+        limit: limitNum,
+      });
+
+      return res.status(200).json({
+        status: "success",
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
+        data,
+      });
+    }
 
     // Match ONLY stock records in SF-ECOMMERCE with quantity > 0 (unless inStockOnly === 'false')
     const matchConditions = {
@@ -552,131 +601,6 @@ export const getEcommerceProducts = asyncErrorHandler(
         },
       },
     ];
-
-    if (groupBy === "design") {
-      pipeline.push(
-        {
-          $group: {
-            _id: "$inventoryDoc.category",
-            representativeId: { $first: "$inventoryDoc._id" },
-            category: { $first: "$inventoryDoc.category" },
-            designName: { $first: "$inventoryDoc.category" },
-            subCategory: { $first: "$inventoryDoc.subCategory" },
-            brand: { $first: "$inventoryDoc.brand" },
-            description: { $first: "$inventoryDoc.description" },
-            unitOfMeasure: { $first: "$inventoryDoc.unitOfMeasure" },
-            sellingPrice: { $min: "$inventoryDoc.sellingPrice" },
-            image: { $first: { $arrayElemAt: ["$inventoryDoc.images.url", 0] } },
-            images: { $first: "$inventoryDoc.images" },
-            totalAvailableStock: { $sum: "$quantity" },
-            colors: { $addToSet: "$inventoryDoc.color" },
-            sizes: { $addToSet: "$inventoryDoc.size" },
-            variants: {
-              $push: {
-                _id: "$inventoryDoc._id",
-                id: "$inventoryDoc._id",
-                inventoryId: "$inventoryDoc._id",
-                productName: "$inventoryDoc.productName",
-                productCode: "$inventoryDoc.productCode",
-                color: "$inventoryDoc.color",
-                size: "$inventoryDoc.size",
-                price: "$inventoryDoc.sellingPrice",
-                sellingPrice: "$inventoryDoc.sellingPrice",
-                image: { $arrayElemAt: ["$inventoryDoc.images.url", 0] },
-                availableStock: "$quantity",
-                discount: "$discount",
-              },
-            },
-            createdAt: { $max: "$inventoryDoc.createdAt" },
-          },
-        },
-        {
-          $facet: {
-            metadata: [{ $count: "total" }],
-            data: [
-              { $sort: { createdAt: -1 } },
-              { $skip: (pageNum - 1) * limitNum },
-              { $limit: limitNum },
-            ],
-          },
-        },
-      );
-
-      const [result] = await StorefrontInventory.aggregate(pipeline);
-      const totalCount = result?.metadata?.[0]?.total || 0;
-      const now = new Date();
-
-      const paginatedDesigns = (result?.data || []).map((d) => {
-        let hasAnyDiscount = false;
-        let minDiscountedPrice = Infinity;
-        let repOriginalPrice = d.sellingPrice;
-        let repDiscountLabel = null;
-
-        const processedVariants = (d.variants || []).map((v) => {
-          const originalPrice = Number(v.sellingPrice) || 0;
-          const pricing = resolveUnitPrice({
-            inventory: { sellingPrice: originalPrice },
-            stockRecord: { discount: v.discount },
-            quantity: 1,
-            now,
-            applyWholesale: false,
-          });
-
-          const discountedPrice = pricing.unitPrice;
-          let discountLabel = null;
-          if (pricing.priceSource === "discount" && pricing.itemDiscount) {
-            hasAnyDiscount = true;
-            if (pricing.itemDiscount.type === "percentage") {
-  discountLabel = `-${pricing.itemDiscount.value}%`;
-} else {
-  const pct = originalPrice > 0 ? Math.round((pricing.itemDiscount.amount / originalPrice) * 100) : 0;
-  discountLabel = pct > 0 ? `-${pct}%` : `-${pricing.itemDiscount.amount.toLocaleString()} MMK`;
-}
-          }
-
-          if (discountedPrice < minDiscountedPrice) {
-            minDiscountedPrice = discountedPrice;
-            repOriginalPrice = originalPrice;
-            repDiscountLabel = discountLabel;
-          }
-
-          const { discount: _rawDiscount, ...cleanVariant } = v;
-          return {
-            ...cleanVariant,
-            originalPrice,
-            price: discountedPrice,
-            sellingPrice: discountedPrice,
-            discountLabel,
-          };
-        });
-
-        const finalSellingPrice =
-          minDiscountedPrice !== Infinity ? minDiscountedPrice : d.sellingPrice;
-
-        return {
-          ...d,
-          _id: d.representativeId,
-          id: d.representativeId,
-          inventoryId: d.representativeId,
-          image: d.image || d.images?.[0]?.url || "",
-          originalPrice: repOriginalPrice,
-          price: finalSellingPrice,
-          sellingPrice: finalSellingPrice,
-          hasDiscount: hasAnyDiscount,
-          discountLabel: repDiscountLabel,
-          variants: processedVariants,
-        };
-      });
-
-      return res.status(200).json({
-        status: "success",
-        total: totalCount,
-        page: pageNum,
-        limit: limitNum,
-        totalPages: Math.ceil(totalCount / limitNum),
-        data: paginatedDesigns,
-      });
-    }
 
     // Default flat list if not grouped
     pipeline.push(
@@ -760,6 +684,94 @@ export const getEcommerceProducts = asyncErrorHandler(
     });
   },
 );
+
+// 4b. Get Public E-commerce Filters (Patterns, Sizes, Active Sections) - Cached 5 minutes
+const filtersCache = new NodeCache({ stdTTL: 300 });
+
+export const getEcommerceFilters = asyncErrorHandler(async (req, res, next) => {
+  const cacheKey = "ecommerce:filters";
+  const cached = filtersCache.get(cacheKey);
+  if (cached) {
+    return res.status(200).json({
+      status: "success",
+      data: cached,
+    });
+  }
+
+  const ecommerceStore = await getOrCreateEcommerceStorefront();
+
+  const aggregateResult = await StorefrontInventory.aggregate([
+    {
+      $match: {
+        storefrontId: ecommerceStore._id,
+        quantity: { $gt: 0 },
+      },
+    },
+    {
+      $lookup: {
+        from: "inventories",
+        localField: "inventoryId",
+        foreignField: "_id",
+        as: "inventoryDoc",
+      },
+    },
+    { $unwind: "$inventoryDoc" },
+    {
+      $match: {
+        "inventoryDoc.isDeleted": { $ne: true },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        patterns: { $addToSet: "$inventoryDoc.category" },
+        sizes: { $addToSet: "$inventoryDoc.size" },
+      },
+    },
+  ]);
+
+  const rawPatterns = aggregateResult[0]?.patterns || [];
+  const rawSizes = aggregateResult[0]?.sizes || [];
+
+  const patterns = rawPatterns
+    .filter((p) => p && String(p).trim())
+    .map((p) => String(p).trim())
+    .sort((a, b) => a.localeCompare(b, "my"));
+
+  const sizes = rawSizes
+    .filter((s) => s && String(s).trim())
+    .map((s) => String(s).trim())
+    .sort((a, b) => a.localeCompare(b, "my"));
+
+  const activeSections = await HomeSection.find({ isActive: true }).sort({
+    sortOrder: 1,
+    createdAt: 1,
+  });
+
+  const sectionsWithStock = [];
+  for (const section of activeSections) {
+    const { total } = await resolveSectionDesigns(section, { page: 1, limit: 1 });
+    if (total > 0) {
+      sectionsWithStock.push({
+        slug: section.slug,
+        title: section.title,
+      });
+    }
+  }
+
+  const filterData = {
+    patterns,
+    sizes,
+    sections: sectionsWithStock,
+  };
+
+  filtersCache.set(cacheKey, filterData);
+
+  return res.status(200).json({
+    status: "success",
+    data: filterData,
+  });
+});
 
 // 5. Get Single Public E-commerce Product & All its Color Variants by ID (Tokenless)
 export const getEcommerceProductById = asyncErrorHandler(

@@ -322,11 +322,31 @@
 
 | Method | Endpoint | Access / Roles | Description |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/ecommerce/products` | Public | Get public catalog with stock & design grouping, including `originalPrice`, `price`, `sellingPrice` (discounted), and `discountLabel`. |
+| `GET` | `/ecommerce/products` | Public | Get public catalog with stock & design grouping, including `originalPrice`, `price`, `sellingPrice` (discounted), and `discountLabel`. Query params: `pattern` (comma-separated categories), `size`, `sort` (`newest` \| `discount` \| `popular` \| `priceAsc` \| `priceDesc`), `search`, `category`, `page`, `limit`, `inStockOnly`. |
+| `GET` | `/ecommerce/filters` | Public | Get distinct in-stock `patterns` (categories), `sizes`, and active `sections` with available stock for catalog filtering (cached 5 minutes). |
 | `GET` | `/ecommerce/products/:id` | Public | Get single product and available color variants with per-variant discount and pricing. |
 | `POST` | `/ecommerce/orders` | Public | Place customer e-commerce order (server recalculates discounted pricing automatically). |
 | `POST` | `/ecommerce/orders/track` | Public | Track order status by order number and phone; includes `originalUnitPrice` and `itemDiscount`. |
 | `GET` | `/ecommerce/store-info` | Public | Retrieve public store information and supported payment methods. |
+| `GET` | `/ecommerce/home-sections` | Public | Active home page sections in display order, each with `title`, `description`, `buttonLabel`, `slug`, `source` and up to 3 `designs` (same card shape as `/ecommerce/products`). Sections with no in-stock designs are left out. |
+| `GET` | `/ecommerce/home-sections/:slug/products` | Public | All designs of one active section (`?page`, `?limit` max 50, `?pattern`, `?size`, `?q`), plus the `section` heading data. Used by the online shop's `/products?section=<slug>`. |
+
+---
+
+## 21. Online Home Sections (Dashboard)
+
+**Base Path:** `/api/v1/home-sections`
+
+A section picks its designs (`Inventory.category` values with SF-ECOMMERCE stock) by `source`: `manual` (`designs`, in order), `tag` (`Inventory.tags`), `newest`, or `bestSelling` (most sold over `bestSellingDays`, cached 10 minutes).
+
+| Method | Endpoint | Access / Roles | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/home-sections` | `owner`, `admin` | List all sections, including hidden ones, by `sortOrder`. |
+| `POST` | `/home-sections` | `owner`, `admin` | Create a section. Body: `title`, `description`, `buttonLabel`, `slug?` (generated when empty), `source`, `designs`, `tag`, `bestSellingDays`, `isActive`. |
+| `PATCH` | `/home-sections/reorder` | `owner`, `admin` | Save the display order. Body: `{ "ids": ["<sectionId>", ...] }`. |
+| `POST` | `/home-sections/preview` | `owner`, `admin` | Return the designs an unsaved section would show (same body as create). Nothing is stored. |
+| `PATCH` | `/home-sections/:id` | `owner`, `admin` | Update any of the create fields. |
+| `DELETE` | `/home-sections/:id` | `owner`, `admin` | Delete a section. |
 
 ---
 

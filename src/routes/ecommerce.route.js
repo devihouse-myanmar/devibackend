@@ -7,7 +7,12 @@ import {
   getEcommerceStoreInfo,
   getEcommerceProducts,
   getEcommerceProductById,
+  getEcommerceFilters,
 } from "../controllers/ecommerce.controller.js";
+import {
+  getPublicHomeSections,
+  getPublicHomeSectionProducts,
+} from "../controllers/homeSection.controller.js";
 
 const router = express.Router();
 
@@ -15,6 +20,9 @@ const router = express.Router();
 
 // 1. Get E-commerce Products Catalog with Stock
 router.get("/ecommerce/products", getEcommerceProducts);
+
+// 1b. Get E-commerce Catalog Filter Options (Patterns, Sizes, Active Sections)
+router.get("/ecommerce/filters", getEcommerceFilters);
 
 // 2. Get Single E-commerce Product by ID
 router.get("/ecommerce/products/:id", getEcommerceProductById);
@@ -32,5 +40,11 @@ router.post("/ecommerce/orders/track", trackOrderRateLimiter, getEcommerceOrderT
 
 // 5. Get E-commerce Store Info & Supported Payment Providers
 router.get("/ecommerce/store-info", getEcommerceStoreInfo);
+
+// 6. Home page product sections (active only, 3 designs each)
+router.get("/ecommerce/home-sections", getPublicHomeSections);
+
+// 7. All designs of one home section, for /products?section=<slug>
+router.get("/ecommerce/home-sections/:slug/products", getPublicHomeSectionProducts);
 
 export default router;
