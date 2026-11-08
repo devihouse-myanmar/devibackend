@@ -2,6 +2,7 @@ import express from "express";
 import multer from "multer";
 import {
   createInventory,
+  uploadProductImages,
   getAllInventory,
   getInventoryById,
   updateInventory,
@@ -11,6 +12,7 @@ import {
 } from "../controllers/inventory.controller.js";
 import { protect } from "../controllers/administrationPolicy.controller.js";
 import { permissionGranted } from "../controllers/administrationPolicy.controller.js";
+import multerProductImagesUpload from "../middlewares/multerProductImagesUpload.middleware.js";
 
 const router = express.Router();
 
@@ -59,6 +61,15 @@ router.post(
   protect,
   permissionGranted("owner", "admin", "cashier", "warehouse"),
   createInventory,
+);
+
+// Upload product images (max 5 images, max 5MB each)
+router.post(
+  "/inventory/images",
+  protect,
+  permissionGranted("owner", "admin", "cashier", "warehouse"),
+  multerProductImagesUpload("images", 5),
+  uploadProductImages,
 );
 
 // Get all inventory items

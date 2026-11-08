@@ -56,6 +56,7 @@
 | Method | Endpoint | Access / Roles | Description |
 | :--- | :--- | :--- | :--- |
 | `POST` | `/inventory` | `owner`, `admin` | Create a new master product in inventory catalog. |
+| `POST` | `/inventory/images` | `owner`, `admin`, `cashier`, `warehouse` | Upload product images (max 5 images, max 5MB each, multipart/form-data field name 'images'). Returns Cloudflare R2 image URLs. |
 | `GET` | `/inventory` | `owner`, `admin` | Get all master inventory items (supports `page`, `limit`, `category`, `status`, `search`, `supplierId`). |
 | `GET` | `/inventory/categories` | `owner`, `admin`, `cashier` | Get list of all distinct product categories. |
 | `GET` | `/inventory/:id` | `owner`, `admin` | Get master inventory item details by ID. |

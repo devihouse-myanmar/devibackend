@@ -18,13 +18,13 @@ const r2Client = new S3Client({
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME;
 
 // Upload file to Cloudflare R2
-export const uploadToR2 = async (file, key) => {
+export const uploadToR2 = async (file, key, contentType = null) => {
   try {
     const command = new PutObjectCommand({
       Bucket: R2_BUCKET_NAME,
       Key: key,
       Body: file.buffer,
-      ContentType: file.mimetype,
+      ContentType: contentType || file.mimetype,
       CacheControl: "public, max-age=31536000", // 1 year cache
     });
 

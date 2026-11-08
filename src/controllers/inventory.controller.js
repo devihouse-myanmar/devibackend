@@ -5,10 +5,142 @@ import StorefrontInventory from "../models/storefrontInventory.model.js";
 import { asyncErrorHandler } from "../utils/asyncErrorHandler.js";
 import CustomError from "../utils/customError.js";
 import XLSX from "xlsx";
+import { generateR2Key, uploadToR2 } from "../configs/cloudflareR2.config.js";
+import { checkImageMagicBytes } from "../middlewares/multerProductImagesUpload.middleware.js";
+
+/**
+ * Validates and normalizes images array for Inventory create/update.
+ * - Max 5 images per product.
+ * - Each URL must start with ${process.env.R2_PUBLIC_URL}/inventory/.
+ * - Rejects data: URLs and external URLs with 400.
+ * - Ensures exactly one image has isPrimary: true (the first one if none or multiple).
+ */
+export const validateAndNormalizeImages = (images) => {
+  if (images === undefined) return undefined;
+  if (!Array.isArray(images)) {
+    throw new CustomError(400, "Images must be an array");
+  }
+  if (images.length > 5) {
+    throw new CustomError(400, "A product can have at most 5 images");
+  }
+
+  if (!process.env.R2_PUBLIC_URL) {
+    throw new CustomError(500, "Image storage not configured");
+  }
+
+  const r2Prefix = `${process.env.R2_PUBLIC_URL}/inventory/`;
+
+  const normalizedImages = images.map((img) => {
+    const url = typeof img === "string" ? img : img?.url;
+    const color =
+      typeof img === "object" && img?.color ? String(img.color).trim() : "";
+    const isPrimary =
+      typeof img === "object" ? Boolean(img.isPrimary) : false;
+
+    if (!url || typeof url !== "string") {
+      throw new CustomError(400, "Each image must have a valid URL string");
+    }
+    if (url.startsWith("data:")) {
+      throw new CustomError(
+        400,
+        "Base64 data URLs are not allowed. Please upload images to /inventory/images first"
+      );
+    }
+    if (!url.startsWith(r2Prefix)) {
+      throw new CustomError(
+        400,
+        `Image URL must be hosted on Cloudflare R2 under ${r2Prefix}`
+      );
+    }
+
+    const suffix = url.slice(r2Prefix.length);
+    if (
+      !suffix ||
+      suffix.includes("..") ||
+      suffix.includes("\\") ||
+      suffix.includes("?") ||
+      suffix.includes("#")
+    ) {
+      throw new CustomError(
+        400,
+        "Invalid image URL path or query parameters not allowed"
+      );
+    }
+
+    return {
+      url,
+      color,
+      isPrimary,
+    };
+  });
+
+  // Ensure exactly one image has isPrimary: true (the first one if none or multiple)
+  if (normalizedImages.length > 0) {
+    const primaryCount = normalizedImages.filter((img) => img.isPrimary).length;
+    if (primaryCount !== 1) {
+      normalizedImages.forEach((img, idx) => {
+        img.isPrimary = idx === 0;
+      });
+    }
+  }
+
+  return normalizedImages;
+};
+
+// Upload product images (max 5 images, max 5MB each)
+export const uploadProductImages = asyncErrorHandler(async (req, res, next) => {
+  if (!req.files || req.files.length === 0) {
+    return next(new CustomError(400, "Please upload at least one image file"));
+  }
+
+  if (req.files.length > 5) {
+    return next(new CustomError(400, "Maximum 5 images allowed per upload"));
+  }
+
+  // Check magic bytes for each file
+  for (const file of req.files) {
+    const detectedType = checkImageMagicBytes(file.buffer);
+    if (!detectedType) {
+      return next(
+        new CustomError(
+          400,
+          `Invalid image format for file '${file.originalname}'. Only authentic JPEG, PNG, and WebP images are allowed (file signature check failed)`
+        )
+      );
+    }
+  }
+
+  const urls = [];
+  for (const file of req.files) {
+    const detectedType = checkImageMagicBytes(file.buffer);
+    const ext = detectedType === "jpeg" ? "jpeg" : detectedType;
+    const mimeType = `image/${detectedType}`;
+    const timestamp = Date.now();
+    const randomString = Math.random().toString(36).substring(2, 15);
+    const key = `inventory/${timestamp}-${randomString}.${ext}`;
+
+    file.mimetype = mimeType;
+    const url = await uploadToR2(file, key, mimeType);
+    urls.push(url);
+  }
+
+  res.status(200).json({
+    success: true,
+    message: "Product images uploaded successfully",
+    data: {
+      urls,
+    },
+  });
+});
 
 // Create new inventory item
 export const createInventory = asyncErrorHandler(async (req, res, next) => {
   const inventoryData = req.body;
+
+  // Validate images if provided
+  if (inventoryData.images !== undefined) {
+    inventoryData.images = validateAndNormalizeImages(inventoryData.images);
+  }
 
   // Check if productCode already exists
   if (inventoryData.productCode) {
@@ -262,6 +394,11 @@ export const getInventoryById = asyncErrorHandler(async (req, res, next) => {
 export const updateInventory = asyncErrorHandler(async (req, res, next) => {
   const { id } = req.params;
   const updateData = req.body;
+
+  // Validate images if provided
+  if (updateData.images !== undefined) {
+    updateData.images = validateAndNormalizeImages(updateData.images);
+  }
 
   // Validate MongoDB ObjectId format
   if (!mongoose.Types.ObjectId.isValid(id)) {

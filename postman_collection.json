@@ -871,6 +871,42 @@
             "description": "Get all unique product categories."
           },
           "response": []
+        },
+        {
+          "name": "Upload Product Images",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/inventory/images",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory",
+                "images"
+              ]
+            },
+            "description": "Upload product images (max 5 images, max 5MB each). Allowed formats: JPG, PNG, WebP. Returns Cloudflare R2 image URLs."
+          },
+          "response": []
         }
       ]
     },
