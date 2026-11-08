@@ -45,6 +45,24 @@ export const getBestSellingDesigns = async (days = 30) => {
   return designs;
 };
 
+// URL of a product's main photo: the primary one, else the first, else "".
+export const pickImageUrl = (images) => {
+  if (!Array.isArray(images) || images.length === 0) return "";
+  const withUrl = images.filter((img) => img && typeof img.url === "string" && img.url);
+  const primary = withUrl.find((img) => img.isPrimary);
+  return (primary || withUrl[0])?.url || "";
+};
+
+// All photo URLs of a product, primary first
+export const imageUrlList = (images) => {
+  if (!Array.isArray(images)) return [];
+  const withUrl = images.filter((img) => img && typeof img.url === "string" && img.url);
+  return [
+    ...withUrl.filter((img) => img.isPrimary),
+    ...withUrl.filter((img) => !img.isPrimary),
+  ].map((img) => img.url);
+};
+
 export const escapeRegex = (value) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -98,9 +116,11 @@ const toDesignCard = (d, now) => {
       repDiscountLabel = discountLabel;
     }
 
-    const { discount: _rawDiscount, ...cleanVariant } = v;
+    const { discount: _rawDiscount, images: rawImages, ...cleanVariant } = v;
     return {
       ...cleanVariant,
+      image: pickImageUrl(rawImages),
+      images: imageUrlList(rawImages),
       originalPrice,
       price,
       sellingPrice: price,
@@ -116,7 +136,8 @@ const toDesignCard = (d, now) => {
     _id: d.representativeId,
     id: d.representativeId,
     inventoryId: d.representativeId,
-    image: d.image || d.images?.[0]?.url || "",
+    // Card photo: the first variant (oldest product) that has one
+    image: processedVariants.find((v) => v.image)?.image || "",
     originalPrice: repOriginalPrice,
     price: finalSellingPrice,
     sellingPrice: finalSellingPrice,
@@ -187,6 +208,8 @@ export const getEcommerceDesigns = async ({
     },
     { $unwind: "$inventoryDoc" },
     { $match: inventoryMatch },
+    // Fixed order so $first (representative product) and variant order don't change between requests
+    { $sort: { "inventoryDoc.createdAt": 1, "inventoryDoc._id": 1 } },
     {
       $group: {
         _id: "$inventoryDoc.category",
@@ -198,8 +221,6 @@ export const getEcommerceDesigns = async ({
         description: { $first: "$inventoryDoc.description" },
         unitOfMeasure: { $first: "$inventoryDoc.unitOfMeasure" },
         sellingPrice: { $min: "$inventoryDoc.sellingPrice" },
-        image: { $first: { $arrayElemAt: ["$inventoryDoc.images.url", 0] } },
-        images: { $first: "$inventoryDoc.images" },
         totalAvailableStock: { $sum: "$quantity" },
         colors: { $addToSet: "$inventoryDoc.color" },
         sizes: { $addToSet: "$inventoryDoc.size" },
@@ -214,7 +235,7 @@ export const getEcommerceDesigns = async ({
             size: "$inventoryDoc.size",
             price: "$inventoryDoc.sellingPrice",
             sellingPrice: "$inventoryDoc.sellingPrice",
-            image: { $arrayElemAt: ["$inventoryDoc.images.url", 0] },
+            images: "$inventoryDoc.images",
             availableStock: "$quantity",
             discount: "$discount",
           },

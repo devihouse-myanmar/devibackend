@@ -9,7 +9,11 @@ import { asyncErrorHandler } from "../utils/asyncErrorHandler.js";
 import CustomError from "../utils/customError.js";
 import { formatPhoneNumber } from "../utils/phoneValidation.utils.js";
 import { resolveUnitPrice } from "../utils/pricing.utils.js";
-import { getEcommerceDesigns } from "../services/ecommerceCatalog.service.js";
+import {
+  getEcommerceDesigns,
+  pickImageUrl,
+  imageUrlList,
+} from "../services/ecommerceCatalog.service.js";
 import NodeCache from "node-cache";
 import HomeSection from "../models/homeSection.model.js";
 import { resolveSectionDesigns } from "./homeSection.controller.js";
@@ -544,7 +548,7 @@ export const getEcommerceOrderTrack = asyncErrorHandler(
           unitPrice: p.unitPrice,
           originalUnitPrice: p.originalUnitPrice || p.unitPrice,
           itemDiscount: p.itemDiscount || null,
-          image: p.inventoryId?.images?.[0]?.url || null,
+          image: pickImageUrl(p.inventoryId?.images) || null,
         })),
         subTotal: order.subTotal,
         deliFee: order.deliveryInfo?.deliFee || 0,
@@ -893,6 +897,7 @@ export const getEcommerceProductById = asyncErrorHandler(
       .select(
         "productName productCode category subCategory brand color size images description sellingPrice unitOfMeasure createdAt",
       )
+      .sort({ createdAt: 1, _id: 1 })
       .lean();
 
     const categoryItemIds = categoryInventory.map((i) => i._id);
@@ -959,8 +964,8 @@ export const getEcommerceProductById = asyncErrorHandler(
           sellingPrice: discountedPrice,
           discountLabel,
           hasDiscount: pricing.priceSource === "discount",
-          image: s.images?.[0]?.url || "",
-          images: s.images || [],
+          image: pickImageUrl(s.images),
+          images: imageUrlList(s.images),
           availableStock: stockMap.get(s._id.toString()) || 0,
         };
       });
@@ -1006,7 +1011,8 @@ export const getEcommerceProductById = asyncErrorHandler(
         size: fullActiveDoc.size,
         colors: uniqueColors,
         sizes: uniqueSizes,
-        images: fullActiveDoc.images || [],
+        image: activeProduct.image,
+        images: activeProduct.images,
         description: fullActiveDoc.description,
         originalPrice: activeProduct.originalPrice,
         price: activeProduct.price,
