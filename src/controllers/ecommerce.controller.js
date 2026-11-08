@@ -1046,7 +1046,7 @@ export const getDeliveryOptions = asyncErrorHandler(async (req, res, next) => {
         fee: settings.carGateFee || 0,
         note:
           settings.carGateNote ||
-          "ကားဂိတ်ခကို ပစ္စည်းရောက်ရှိချိန်တွင် ပေးချေရပါမည်",
+          "ဂိတ်မှ ခရီးဆုံးအထိ ကားခကို ပစ္စည်းရောက်ရှိချိန်တွင် ကားဂိတ်၌ ပေးချေရပါမည်",
       },
     },
   });

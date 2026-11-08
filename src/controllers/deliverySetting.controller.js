@@ -11,7 +11,7 @@ export const getDeliverySettings = asyncErrorHandler(async (req, res, next) => {
     carGateFee: Number(shopSetting?.delivery?.carGateFee ?? 0),
     carGateNote:
       shopSetting?.delivery?.carGateNote ||
-      "ကားဂိတ်ခကို ပစ္စည်းရောက်ရှိချိန်တွင် ပေးချေရပါမည်",
+      "ဂိတ်မှ ခရီးဆုံးအထိ ကားခကို ပစ္စည်းရောက်ရှိချိန်တွင် ကားဂိတ်၌ ပေးချေရပါမည်",
   };
 
   res.status(200).json({
@@ -38,7 +38,7 @@ export const updateDeliverySettings = asyncErrorHandler(
     if (!shopSetting.delivery) {
       shopSetting.delivery = {
         carGateFee: 0,
-        carGateNote: "ကားဂိတ်ခကို ပစ္စည်းရောက်ရှိချိန်တွင် ပေးချေရပါမည်",
+        carGateNote: "ဂိတ်မှ ခရီးဆုံးအထိ ကားခကို ပစ္စည်းရောက်ရှိချိန်တွင် ကားဂိတ်၌ ပေးချေရပါမည်",
       };
     }
 

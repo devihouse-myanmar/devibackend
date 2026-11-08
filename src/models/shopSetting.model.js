@@ -103,7 +103,7 @@ const shopSettingSchema = new mongoose.Schema(
       carGateNote: {
         type: String,
         trim: true,
-        default: "ကားဂိတ်ခကို ပစ္စည်းရောက်ရှိချိန်တွင် ပေးချေရပါမည်",
+        default: "ဂိတ်မှ ခရီးဆုံးအထိ ကားခကို ပစ္စည်းရောက်ရှိချိန်တွင် ကားဂိတ်၌ ပေးချေရပါမည်",
       },
     },
     updatedBy: {

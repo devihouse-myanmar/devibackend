@@ -28,7 +28,7 @@ export const getCachedDeliverySettings = async () => {
     carGateFee: Number(settingDoc?.delivery?.carGateFee ?? 0),
     carGateNote:
       settingDoc?.delivery?.carGateNote ||
-      "ကားဂိတ်ခကို ပစ္စည်းရောက်ရှိချိန်တွင် ပေးချေရပါမည်",
+      "ဂိတ်မှ ခရီးဆုံးအထိ ကားခကို ပစ္စည်းရောက်ရှိချိန်တွင် ကားဂိတ်၌ ပေးချေရပါမည်",
   };
   deliveryCache.set("delivery_settings", settings);
   return settings;
