@@ -9,6 +9,78 @@ import {
   createStockAuditLog,
   determineActionType,
 } from "../services/stockAuditLog.service.js";
+import { requireMainStorefront } from "../services/sharedStock.service.js";
+
+export const receiveMainStoreInventory = asyncErrorHandler(async (req, res) => {
+  const { storefrontId, items } = req.body ?? {};
+  const isInventoryId = (value) => typeof value === "string" && /^[a-f0-9]{24}$/i.test(value);
+  if (!isInventoryId(storefrontId) || !Array.isArray(items) ||
+      items.length === 0 || items.length > 100 ||
+      items.some((item) => !isInventoryId(item?.inventoryId) ||
+        !Number.isSafeInteger(item.quantity) || item.quantity <= 0)) {
+    throw new CustomError(400, "Select 1–100 products and enter a positive whole quantity for each.");
+  }
+
+  const quantities = new Map(items.map(({ inventoryId, quantity }) => [inventoryId.toLowerCase(), quantity]));
+  if (quantities.size !== items.length) {
+    throw new CustomError(400, "Select each product only once.");
+  }
+  const ids = [...quantities.keys()];
+
+  let result;
+  try {
+    result = await mongoose.connection.transaction(async (session) => {
+      const storefront = await requireMainStorefront(undefined, session);
+      if (!storefront._id.equals(storefrontId)) {
+        throw new CustomError(409, "The Main Store has changed. Refresh Inventory and try again.");
+      }
+
+      const inventory = await Inventory.find({
+        _id: { $in: ids }, status: "active", isDeleted: { $ne: true },
+      }).select("_id reorderPoint").session(session).lean();
+      if (inventory.length !== ids.length) {
+        throw new CustomError(409, "Some products are missing or inactive. Refresh Inventory and try again.");
+      }
+
+      const existingStock = await StorefrontInventory.find({
+        storefrontId, inventoryId: { $in: ids },
+      }).select("inventoryId").session(session).lean();
+      const alreadyInStore = new Set(existingStock.map(({ inventoryId }) => String(inventoryId)));
+      const newRecords = inventory
+        .filter(({ _id }) => !alreadyInStore.has(String(_id)))
+        .map(({ _id, reorderPoint }) => {
+          const quantity = quantities.get(String(_id));
+          return { inventoryId: _id, storefrontId, quantity, isLowStock: quantity <= (reorderPoint ?? 0) };
+        });
+
+      if (newRecords.length > 0) {
+        const received = await StorefrontInventory.insertMany(newRecords, { session });
+        for (const stock of received) {
+          await createStockAuditLog({
+            inventoryId: stock.inventoryId,
+            adminId: req.user._id,
+            locationId: storefront._id,
+            locationType: "storefront",
+            stockRecordId: stock._id,
+            beforeQuantity: 0,
+            afterQuantity: stock.quantity,
+            quantityChange: stock.quantity,
+            action: "create",
+            reason: "Initial stock received at the Main Store",
+            session,
+          });
+        }
+      }
+
+      return { received: newRecords.length, alreadyInStore: alreadyInStore.size };
+    });
+  } catch (error) {
+    if (error.code !== 11000) throw error;
+    throw new CustomError(409, "Stock was received in another request. Refresh Inventory and try again.");
+  }
+
+  res.status(201).json({ success: true, data: result });
+});
 
 export const createStorefrontInventory = asyncErrorHandler(
   async (req, res, next) => {
@@ -239,7 +311,7 @@ export const getAllStorefrontInventory = asyncErrorHandler(
         },
       },
       { $unwind: "$inventoryId" },
-      { $match: { "inventoryId.status": "active" } },
+      { $match: { "inventoryId.status": "active", "inventoryId.isDeleted": { $ne: true } } },
     ];
 
     if (category) {

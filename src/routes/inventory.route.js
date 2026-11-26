@@ -6,6 +6,7 @@ import {
   getAllInventory,
   getInventoryById,
   updateInventory,
+  updateEcommercePublication,
   importInventoryFromExcel,
   getAllCategories,
   updateBatchExpiryDate,
@@ -89,6 +90,13 @@ router.get(
 );
 
 // Update inventory metadata
+router.patch(
+  "/inventory/ecommerce-publication",
+  protect,
+  permissionGranted("owner", "admin"),
+  updateEcommercePublication,
+);
+
 router.patch(
   "/inventory/:id",
   protect,

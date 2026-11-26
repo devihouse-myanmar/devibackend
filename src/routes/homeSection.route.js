@@ -1,6 +1,7 @@
 import express from "express";
 import {
   getAllHomeSections,
+  getHomeSectionDesigns,
   createHomeSection,
   updateHomeSection,
   reorderHomeSections,
@@ -13,6 +14,13 @@ import { permissionGranted } from "../controllers/administrationPolicy.controlle
 const router = express.Router();
 
 // Online shop home page sections (owner/admin)
+router.get(
+  "/home-sections/designs",
+  protect,
+  permissionGranted("owner", "admin"),
+  getHomeSectionDesigns,
+);
+
 router.get(
   "/home-sections",
   protect,

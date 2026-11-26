@@ -40,6 +40,8 @@ import homeSectionRouter from "./routes/homeSection.route.js";
 import deliveryTownshipRouter from "./routes/deliveryTownship.route.js";
 import deliverySettingRouter from "./routes/deliverySetting.route.js";
 import paymentAccountRouter from "./routes/paymentAccount.route.js";
+import customerRouter from "./routes/customerAuth.route.js";
+import { customerApiError } from "./middlewares/customerAuth.middleware.js";
 const app = express();
 app.use(
   helmet({
@@ -48,6 +50,11 @@ app.use(
   }),
 );
 
+const customerApi = "/api/v1/customer";
+app.use(customerApi, (_req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  next();
+});
 app.use(configureCors());
 
 app.set("trust proxy", 1);
@@ -58,6 +65,8 @@ app.use(express.json({ limit: "10kb" }));
 app.use(mmTimeZoneMiddleware);
 
 //Route Mounting
+app.use(customerApi, customerRouter);
+app.use(customerApi, customerApiError);
 app.use("/api/v1", inventoryRouter);
 app.use("/api/v1", warehouseProfileRouter);
 app.use("/api/v1", storefrontProfileRouter);

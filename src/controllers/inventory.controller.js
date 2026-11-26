@@ -7,6 +7,7 @@ import CustomError from "../utils/customError.js";
 import XLSX from "xlsx";
 import { generateR2Key, uploadToR2 } from "../configs/cloudflareR2.config.js";
 import { checkImageMagicBytes } from "../middlewares/multerProductImagesUpload.middleware.js";
+import { requireMainStorefront } from "../services/sharedStock.service.js";
 
 /**
  * Validates and normalizes images array for Inventory create/update.
@@ -135,7 +136,10 @@ export const uploadProductImages = asyncErrorHandler(async (req, res, next) => {
 
 // Create new inventory item
 export const createInventory = asyncErrorHandler(async (req, res, next) => {
-  const inventoryData = req.body;
+  const inventoryData = req.body ?? {};
+  if (Object.hasOwn(inventoryData, "ecommercePublished")) {
+    return next(new CustomError(400, "Use the E-commerce publishing action after creating the item."));
+  }
 
   // Validate images if provided
   if (inventoryData.images !== undefined) {
@@ -391,9 +395,18 @@ export const getInventoryById = asyncErrorHandler(async (req, res, next) => {
 });
 
 // Update inventory metadata
+const editableInventoryFields = [
+  "productName", "productCode", "saleCode", "SKU", "barcode", "category", "subCategory", "brand",
+  "color", "size", "images", "description", "buyingPrice", "sellingPrice", "wholesalePrices",
+  "unitOfMeasure", "reorderPoint", "reorderQuantity", "taxRate", "status", "tags", "note", "supplierIds",
+];
+
 export const updateInventory = asyncErrorHandler(async (req, res, next) => {
   const { id } = req.params;
-  const updateData = req.body;
+  const updateData = req.body ?? {};
+  if (Object.hasOwn(updateData, "ecommercePublished")) {
+    return next(new CustomError(400, "Use the E-commerce publishing action to change online visibility."));
+  }
 
   // Validate images if provided
   if (updateData.images !== undefined) {
@@ -494,11 +507,11 @@ export const updateInventory = asyncErrorHandler(async (req, res, next) => {
 
   // Apply updates to the existing document and save
   // This ensures validators have access to the complete merged document
-  Object.keys(updateData).forEach((key) => {
-    if (updateData[key] !== undefined) {
-      existingInventory[key] = updateData[key];
+  for (const field of editableInventoryFields) {
+    if (Object.hasOwn(updateData, field) && updateData[field] !== undefined) {
+      existingInventory.set(field, updateData[field]);
     }
-  });
+  }
 
   // Save the updated inventory (this will run all validators with the complete document)
   const updatedInventory = await existingInventory.save();
@@ -508,6 +521,43 @@ export const updateInventory = asyncErrorHandler(async (req, res, next) => {
     message: "Inventory item updated successfully",
     data: updatedInventory,
   });
+});
+
+export const updateEcommercePublication = asyncErrorHandler(async (req, res) => {
+  const { storefrontId, inventoryIds, published } = req.body ?? {};
+  if (typeof storefrontId !== "string" || !/^[a-f0-9]{24}$/i.test(storefrontId) ||
+      typeof published !== "boolean" || !Array.isArray(inventoryIds) ||
+      inventoryIds.length === 0 || inventoryIds.length > 100 ||
+      inventoryIds.some((id) => typeof id !== "string" || !/^[a-f0-9]{24}$/i.test(id))) {
+    throw new CustomError(400, "Select 1–100 products from the Main Store and choose Publish or Unpublish.");
+  }
+
+  const ids = [...new Set(inventoryIds.map((id) => id.toLowerCase()))];
+  await mongoose.connection.transaction(async (session) => {
+    const mainStore = await requireMainStorefront(undefined, session);
+    if (!mainStore._id.equals(storefrontId)) {
+      throw new CustomError(409, "Website listings are managed from the Main Store.", "MAIN_STOREFRONT_CHANGED");
+    }
+    const eligibleStock = await StorefrontInventory.countDocuments({
+      storefrontId: mainStore._id,
+      inventoryId: { $in: ids },
+      ...(published ? { quantity: { $gt: 0 } } : {}),
+    }).session(session);
+    if (eligibleStock !== ids.length) {
+      throw new CustomError(409, published
+        ? "Each item must have stock at the Main Store before publishing. Refresh the list and try again."
+        : "Some items are missing from the Main Store. Refresh the list and try again.",
+      "PUBLICATION_ITEMS_UNAVAILABLE");
+    }
+    const result = await Inventory.updateMany({
+      _id: { $in: ids }, isDeleted: { $ne: true }, ...(published ? { status: "active" } : {}),
+    }, { $set: { ecommercePublished: published } }, { session });
+    if (result.matchedCount !== ids.length) {
+      throw new CustomError(409, "Some selected items are missing or inactive. Refresh the list and try again.", "PUBLICATION_ITEMS_UNAVAILABLE");
+    }
+  });
+
+  res.json({ success: true, data: { inventoryIds: ids, ecommercePublished: published } });
 });
 
 // Bulk import inventory from Excel file

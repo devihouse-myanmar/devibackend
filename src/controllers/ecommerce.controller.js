@@ -2,7 +2,6 @@ import mongoose from "mongoose";
 import Order from "../models/orders.model.js";
 import Inventory from "../models/inventory.model.js";
 import StorefrontInventory from "../models/storefrontInventory.model.js";
-import LocationProfile from "../models/locationProfile.model.js";
 import ShopSetting from "../models/shopSetting.model.js";
 import CreditPerson from "../models/creditPersona.model.js";
 import { asyncErrorHandler } from "../utils/asyncErrorHandler.js";
@@ -14,7 +13,6 @@ import {
   pickImageUrl,
   imageUrlList,
 } from "../services/ecommerceCatalog.service.js";
-import NodeCache from "node-cache";
 import HomeSection from "../models/homeSection.model.js";
 import { resolveSectionDesigns } from "./homeSection.controller.js";
 import {
@@ -25,8 +23,11 @@ import {
 import {
   uploadToR2,
   generateR2Key,
+  deleteFromR2,
 } from "../configs/cloudflareR2.config.js";
 import PaymentAccount from "../models/paymentAccount.model.js";
+import { ecommerceInventoryFilter, getEcommerceStockSource } from "../services/sharedStock.service.js";
+import { checkEcommerceItems, createEcommerceOrderWithStock, parseEcommerceItems } from "../services/ecommerceOrderStock.service.js";
 
 // Phones are stored as typed at checkout, so compare in E.164 when parseable, else digits-only
 const normalizePhoneForMatch = (phone) =>
@@ -37,30 +38,6 @@ const maskPhone = (phone) => {
   const digits = String(phone || "").replace(/\D/g, "");
   if (digits.length <= 5) return "*".repeat(digits.length);
   return `${digits.slice(0, 2)}${"*".repeat(digits.length - 5)}${digits.slice(-3)}`;
-};
-
-// Helper to find or automatically create Ecommerce Storefront
-export const getOrCreateEcommerceStorefront = async () => {
-  let storefront = await LocationProfile.findOne({
-    type: "storefront",
-    $or: [{ isEcommerceDefault: true }, { locationCode: "SF-ECOMMERCE" }],
-    isDeleted: false,
-  });
-
-  if (!storefront) {
-    storefront = await LocationProfile.create({
-      type: "storefront",
-      locationCode: "SF-ECOMMERCE",
-      locationName: "Ecommerce Online Store",
-      locationAddress: "Devi Silk Online Shop, Yangon",
-      locationPhone: "+959798938874",
-      isEcommerceDefault: true,
-      status: "active",
-      description: "Dedicated storefront for Ecommerce online orders",
-    });
-  }
-
-  return storefront;
 };
 
 // 1. Create Public E-commerce Order (Tokenless)
@@ -229,92 +206,13 @@ export const createEcommerceOrder = asyncErrorHandler(
         );
       }
 
-      try {
-        const key = generateR2Key(req.file.originalname, "ecommerce-slips");
-        screenshotUrl = await uploadToR2(req.file, key);
-        screenshotKey = key;
-        paymentStatus = "pending_verification";
-      } catch (uploadError) {
-        return next(
-          new CustomError(
-            500,
-            `Failed to upload payment slip image: ${uploadError.message}`,
-          ),
-        );
-      }
     }
 
-    // Parse and Validate Order Items
-    let parsedItems = items;
-    if (typeof items === "string") {
-      try {
-        parsedItems = JSON.parse(items);
-      } catch (e) {
-        return next(new CustomError(400, "Invalid items format. Must be a valid JSON array"));
-      }
-    }
-
-    if (!parsedItems || !Array.isArray(parsedItems) || parsedItems.length === 0) {
-      return next(new CustomError(400, "Order must contain at least one product"));
-    }
-
-    // Retrieve or create Ecommerce Storefront
-    const ecommerceStore = await getOrCreateEcommerceStorefront();
-
-    // Verify products, check stock in Ecommerce Storefront, and calculate totals
-    const ordersProducts = [];
-    let subTotal = 0;
-
-    for (let i = 0; i < parsedItems.length; i++) {
-      const item = parsedItems[i];
-      if (!item.inventoryId || !mongoose.Types.ObjectId.isValid(item.inventoryId)) {
-        return next(new CustomError(400, `Item ${i + 1}: Valid inventoryId is required`));
-      }
-      const quantity = Number(item.quantity);
-      if (!quantity || quantity < 1) {
-        return next(new CustomError(400, `Item ${i + 1}: Quantity must be at least 1`));
-      }
-
-      const product = await Inventory.findById(item.inventoryId);
-      if (!product || product.isDeleted) {
-        return next(new CustomError(404, `Product not found: ${item.inventoryId}`));
-      }
-
-      // Check stock strictly in Ecommerce Storefront (SF-ECOMMERCE)
-      const storeStock = await StorefrontInventory.findOne({
-        storefrontId: ecommerceStore._id,
-        inventoryId: product._id,
-      });
-
-      const availableStock = storeStock ? storeStock.quantity : 0;
-      if (availableStock < quantity) {
-        return next(
-          new CustomError(
-            400,
-            `"${product.productName}" ပစ္စည်းအတွက် အွန်လိုင်းဆိုင်ခွဲ (SF-ECOMMERCE) တွင် လက်ကျန် Stock မလုံလောက်ပါ (လက်ကျန်: ${availableStock} ထည်၊ မှာယူထားသော အရေအတွက်: ${quantity} ထည်)`,
-          ),
-        );
-      }
-
-      const pricing = resolveUnitPrice({
-        inventory: product,
-        stockRecord: storeStock,
-        quantity,
-        applyWholesale: false,
-      });
-
-      const unitPrice = pricing.unitPrice;
-      const lineSubTotal = unitPrice * quantity;
-      subTotal += lineSubTotal;
-
-      ordersProducts.push({
-        inventoryId: product._id,
-        quantity,
-        unitPrice,
-        originalUnitPrice: pricing.originalUnitPrice,
-        itemDiscount: pricing.itemDiscount,
-        buyingPrice: product.buyingPrice || null,
-      });
+    const parsedItems = parseEcommerceItems(items);
+    const stockSource = await getEcommerceStockSource();
+    if (normalizedPaymentMethod === "cash_down") {
+      // Check stock before uploading the slip; the transaction checks again before deducting.
+      await checkEcommerceItems(parsedItems, stockSource);
     }
 
     // Server resolves the delivery fee (D2: ignore any client-sent deliFee)
@@ -326,15 +224,6 @@ export const createEcommerceOrder = asyncErrorHandler(
     });
 
     const finalDeliFee = feeResult.fee;
-    const finalAmount = subTotal + finalDeliFee;
-
-    // Deduct stock strictly for SF-ECOMMERCE storefront
-    for (const item of ordersProducts) {
-      await StorefrontInventory.updateOne(
-        { storefrontId: ecommerceStore._id, inventoryId: item.inventoryId },
-        { $inc: { quantity: -item.quantity } },
-      );
-    }
 
     // Find or Auto-Create CreditPerson profile for unified customer management
     let creditPersonId = null;
@@ -383,21 +272,23 @@ export const createEcommerceOrder = asyncErrorHandler(
       );
     }
 
-    // Generate Ecommerce Order Number (ECO-YYYY-MM-DD-NNNNNN)
-    const orderNumber = await Order.generateOrderNumber(new Date(), "ECO");
+    if (normalizedPaymentMethod === "cash_down") {
+      try {
+        const key = generateR2Key(req.file.originalname, "ecommerce-slips");
+        screenshotUrl = await uploadToR2(req.file, key);
+        screenshotKey = key;
+        paymentStatus = "pending_verification";
+      } catch {
+        throw new CustomError(500, "Failed to upload the payment slip image. Please try again.");
+      }
+    }
 
-    // Create Order Record with full delivery snapshot (D7)
-    const newOrder = await Order.create({
-      orderNumber,
+    const orderData = {
       orderSource: "ecommerce",
-      storefrontId: ecommerceStore._id,
-      ordersProducts,
+      customerId: req.customerAuth?.customer._id ?? null,
       creditPersonId,
-      subTotal,
       tax: 0,
       discount: 0,
-      finalAmount,
-      paidAmount: normalizedPaymentMethod === "cash_down" ? finalAmount : 0,
       orderStatus: "pending",
       soldBy: null,
       customerInfo: {
@@ -442,7 +333,20 @@ export const createEcommerceOrder = asyncErrorHandler(
       paymentType: "paid",
       paymentMethod: normalizedPaymentMethod,
       note: (note && note.trim()) || "",
-    });
+    };
+    let newOrder;
+    try {
+      newOrder = await createEcommerceOrderWithStock({ items: parsedItems, stockSource, deliveryFee: finalDeliFee, orderData });
+    } catch (error) {
+      if (screenshotKey && !error.hasErrorLabel?.("UnknownTransactionCommitResult")) {
+        try {
+          await deleteFromR2(screenshotKey);
+        } catch {
+          console.error("[EcommerceOrder] Could not remove an unused payment slip.");
+        }
+      }
+      throw error;
+    }
 
     // Populate order products for the response
     const populatedOrder = await Order.findById(newOrder._id)
@@ -563,7 +467,7 @@ export const getEcommerceOrderTrack = asyncErrorHandler(
 // 3. Get E-commerce Store & Payment Info (Public Tokenless)
 export const getEcommerceStoreInfo = asyncErrorHandler(
   async (req, res, next) => {
-    const storefront = await getOrCreateEcommerceStorefront();
+    const { storefront } = await getEcommerceStockSource();
     const settings = await ShopSetting.findOne({ isActive: true });
 
     res.status(200).json({
@@ -618,8 +522,9 @@ export const getEcommerceProducts = asyncErrorHandler(
       limit = 12,
     } = req.query;
 
-    const ecommerceStore = await getOrCreateEcommerceStorefront();
+    const { storefront, publishedOnly } = await getEcommerceStockSource();
 
+    if (publishedOnly) res.set("Cache-Control", "no-store");
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, parseInt(limit, 10) || 12);
 
@@ -637,7 +542,8 @@ export const getEcommerceProducts = asyncErrorHandler(
       const effectiveSort = validSorts.includes(sort) ? sort : "newest";
 
       const { total, data } = await getEcommerceDesigns({
-        storefrontId: ecommerceStore._id,
+        storefrontId: storefront._id,
+        publishedOnly,
         category,
         search,
         categories,
@@ -658,9 +564,9 @@ export const getEcommerceProducts = asyncErrorHandler(
       });
     }
 
-    // Match ONLY stock records in SF-ECOMMERCE with quantity > 0 (unless inStockOnly === 'false')
+    // Match this stock location, with positive quantity unless the caller includes sold-out variants.
     const matchConditions = {
-      storefrontId: ecommerceStore._id,
+      storefrontId: storefront._id,
     };
     if (inStockOnly !== "false") {
       matchConditions.quantity = { $gt: 0 };
@@ -680,7 +586,7 @@ export const getEcommerceProducts = asyncErrorHandler(
       { $unwind: "$inventoryDoc" },
       {
         $match: {
-          "inventoryDoc.isDeleted": { $ne: true },
+          ...ecommerceInventoryFilter(publishedOnly, "inventoryDoc."),
           ...(category && category.trim()
             ? { "inventoryDoc.category": new RegExp(category.trim(), "i") }
             : {}),
@@ -780,25 +686,15 @@ export const getEcommerceProducts = asyncErrorHandler(
   },
 );
 
-// 4b. Get Public E-commerce Filters (Patterns, Sizes, Active Sections) - Cached 5 minutes
-const filtersCache = new NodeCache({ stdTTL: 300 });
-
+// 4b. Get Public E-commerce Filters (Patterns, Sizes, Active Sections)
 export const getEcommerceFilters = asyncErrorHandler(async (req, res, next) => {
-  const cacheKey = "ecommerce:filters";
-  const cached = filtersCache.get(cacheKey);
-  if (cached) {
-    return res.status(200).json({
-      status: "success",
-      data: cached,
-    });
-  }
+  const { storefront, publishedOnly } = await getEcommerceStockSource();
 
-  const ecommerceStore = await getOrCreateEcommerceStorefront();
-
+  if (publishedOnly) res.set("Cache-Control", "no-store");
   const aggregateResult = await StorefrontInventory.aggregate([
     {
       $match: {
-        storefrontId: ecommerceStore._id,
+        storefrontId: storefront._id,
         quantity: { $gt: 0 },
       },
     },
@@ -813,7 +709,7 @@ export const getEcommerceFilters = asyncErrorHandler(async (req, res, next) => {
     { $unwind: "$inventoryDoc" },
     {
       $match: {
-        "inventoryDoc.isDeleted": { $ne: true },
+        ...ecommerceInventoryFilter(publishedOnly, "inventoryDoc."),
       },
     },
     {
@@ -860,7 +756,6 @@ export const getEcommerceFilters = asyncErrorHandler(async (req, res, next) => {
     sections: sectionsWithStock,
   };
 
-  filtersCache.set(cacheKey, filterData);
 
   return res.status(200).json({
     status: "success",
@@ -877,12 +772,13 @@ export const getEcommerceProductById = asyncErrorHandler(
       return next(new CustomError(400, "Invalid product ID format"));
     }
 
-    const ecommerceStore = await getOrCreateEcommerceStorefront();
+    const { storefront, publishedOnly } = await getEcommerceStockSource();
 
+    if (publishedOnly) res.set("Cache-Control", "no-store");
     // 1. Fetch requested product from Inventory
     const requestedProduct = await Inventory.findOne({
       _id: id,
-      isDeleted: { $ne: true },
+      ...ecommerceInventoryFilter(publishedOnly),
     }).lean();
 
     if (!requestedProduct) {
@@ -892,7 +788,7 @@ export const getEcommerceProductById = asyncErrorHandler(
     // 2. Find all inventory items in the same category
     const categoryInventory = await Inventory.find({
       category: requestedProduct.category,
-      isDeleted: { $ne: true },
+      ...ecommerceInventoryFilter(publishedOnly),
     })
       .select(
         "productName productCode category subCategory brand color size images description sellingPrice unitOfMeasure createdAt",
@@ -902,9 +798,9 @@ export const getEcommerceProductById = asyncErrorHandler(
 
     const categoryItemIds = categoryInventory.map((i) => i._id);
 
-    // 3. Strictly query stocks available in SF-ECOMMERCE
+    // 3. Read available stock for the published variants in this location
     const ecoStocks = await StorefrontInventory.find({
-      storefrontId: ecommerceStore._id,
+      storefrontId: storefront._id,
       inventoryId: { $in: categoryItemIds },
       quantity: { $gt: 0 },
     }).lean();
@@ -913,7 +809,7 @@ export const getEcommerceProductById = asyncErrorHandler(
       return next(
         new CustomError(
           404,
-          "ဤပစ္စည်းသည် အွန်လိုင်းဆိုင်ခွဲ (SF-ECOMMERCE) တွင် လက်ရှိ ရောင်းချရန် မရှိသေးပါ",
+          "ဤပစ္စည်းသည် အွန်လိုင်းတွင် လက်ရှိ ရောင်းချရန် မရှိသေးပါ",
         ),
       );
     }
@@ -926,7 +822,7 @@ export const getEcommerceProductById = asyncErrorHandler(
     }
 
     const now = new Date();
-    // Only include variants that exist in SF-ECOMMERCE with quantity > 0
+    // Only include variants with quantity available at this location
     const availableVariants = categoryInventory
       .filter((item) => stockMap.has(item._id.toString()))
       .map((s) => {
@@ -974,7 +870,7 @@ export const getEcommerceProductById = asyncErrorHandler(
       return next(
         new CustomError(
           404,
-          "ဤပစ္စည်းသည် အွန်လိုင်းဆိုင်ခွဲ (SF-ECOMMERCE) တွင် ပစ္စည်းပြတ်နေပါသည်",
+          "ဤပစ္စည်းသည် အွန်လိုင်းတွင် ပစ္စည်းပြတ်နေပါသည်",
         ),
       );
     }

@@ -1,7 +1,6 @@
 import mongoose from "mongoose";
 import Order from "../models/orders.model.js";
 import StorefrontInventory from "../models/storefrontInventory.model.js";
-import LocationProfile from "../models/locationProfile.model.js";
 import Inventory from "../models/inventory.model.js";
 import CreditPerson from "../models/creditPersona.model.js";
 import CreditRecord from "../models/creditRecord.model.js";
@@ -10,6 +9,7 @@ import CustomError from "../utils/customError.js";
 import { createDateFilter } from "../utils/dateFilter.utils.js";
 import { createStockAuditLog } from "../services/stockAuditLog.service.js";
 import { resolveUnitPrice } from "../utils/pricing.utils.js";
+import { deductStorefrontStock, requireMainStorefront } from "../services/sharedStock.service.js";
 
 // Create new order with ACID properties and stock deduction
 export const createOrder = asyncErrorHandler(async (req, res, next) => {
@@ -68,7 +68,7 @@ export const createOrder = asyncErrorHandler(async (req, res, next) => {
   for (let i = 0; i < ordersProducts.length; i++) {
     const product = ordersProducts[i];
 
-    if (!product.inventoryId) {
+    if (!product?.inventoryId) {
       return next(
         new CustomError(400, `Product at index ${i}: Inventory ID is required`),
       );
@@ -83,7 +83,7 @@ export const createOrder = asyncErrorHandler(async (req, res, next) => {
       );
     }
 
-    if (!product.quantity || product.quantity < 1) {
+    if (!Number.isFinite(Number(product.quantity)) || Number(product.quantity) < 1) {
       return next(
         new CustomError(
           400,
@@ -143,21 +143,9 @@ export const createOrder = asyncErrorHandler(async (req, res, next) => {
 
         // Start transaction
         await session.withTransaction(async () => {
-          // 1. Validate storefront exists and is not deleted
-          const storefront = await LocationProfile.findOne({
-            _id: storefrontId,
-            type: "storefront",
-          }).session(session);
-
-          if (!storefront) {
-            throw new CustomError(404, "Storefront not found");
-          }
-
-          if (storefront.isDeleted) {
-            throw new CustomError(
-              400,
-              "Cannot create order for deleted storefront",
-            );
+          const storefront = await requireMainStorefront(undefined, session);
+          if (!storefront._id.equals(storefrontId)) {
+            throw new CustomError(409, "POS stock has moved to the Main Store. Reload POS before checking out.", "MAIN_STOREFRONT_CHANGED");
           }
 
           // 1a. Validate credit person exists if creditPersonId is provided
@@ -292,10 +280,8 @@ export const createOrder = asyncErrorHandler(async (req, res, next) => {
             throw new CustomError(400, "Final amount cannot be negative");
           }
 
-          // 4. Validate stock availability and deduct stock (direct deduction)
+          // 4. Reserve quantity from the same stock rows used by online checkout.
           for (const product of validatedProducts) {
-            const stockRecord = stockMap.get(product.inventoryId.toString());
-
             const inventoryItem = inventoryMap.get(
               product.inventoryId.toString(),
             );
@@ -303,17 +289,8 @@ export const createOrder = asyncErrorHandler(async (req, res, next) => {
               ? `'${inventoryItem.productCode}' (${inventoryItem.productName})`
               : product.inventoryId;
 
-            const available = stockRecord?.quantity || 0;
-            if (!stockRecord || available < product.quantity) {
-              throw new CustomError(
-                400,
-                `Insufficient stock for product ${productLabel}. Available: ${available}, Requested: ${product.quantity}`,
-              );
-            }
-
-            stockRecord.quantity -= product.quantity;
-            stockRecord.lastUpdated = new Date();
-            await stockRecord.save({ session });
+            await deductStorefrontStock({ storefrontId, inventoryId: product.inventoryId,
+              quantity: Number(product.quantity), session, productLabel });
           }
 
           // 5. Create order with calculated values
@@ -353,9 +330,8 @@ export const createOrder = asyncErrorHandler(async (req, res, next) => {
             "productName productCode SKU",
           );
 
-          // Mark as created successfully
-          orderCreated = true;
         });
+        orderCreated = true;
 
         // If we reach here, order was created successfully
         // Send response outside the transaction
@@ -2009,7 +1985,7 @@ const updateEcommerceOrderStatus = async ({
   return order;
 };
 
-// Returns every item of a cancelled e-commerce order to its storefront (SF-ECOMMERCE) stock
+// Return items to the stock location saved on the order, including legacy online orders.
 const restockCancelledEcommerceOrder = async (order, adminId, session) => {
   for (const item of order.ordersProducts) {
     const quantity = Number(item.quantity) || 0;

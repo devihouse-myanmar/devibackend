@@ -2,6 +2,7 @@ import NodeCache from "node-cache";
 import Order from "../models/orders.model.js";
 import StorefrontInventory from "../models/storefrontInventory.model.js";
 import { resolveUnitPrice } from "../utils/pricing.utils.js";
+import { ecommerceInventoryFilter } from "./sharedStock.service.js";
 
 // Best-selling ranking is an aggregate over all orders, so keep it for 10 minutes
 const bestSellingCache = new NodeCache({ stdTTL: 600 });
@@ -80,7 +81,7 @@ const buildDiscountLabel = (pricing, originalPrice) => {
     : `-${pricing.itemDiscount.amount.toLocaleString()} MMK`;
 };
 
-// Online price for one SF-ECOMMERCE stock record (discount only, no wholesale)
+// Online price for one storefront stock record (discount only, no wholesale)
 export const resolveEcommercePrice = (sellingPrice, discount, now) => {
   const originalPrice = Number(sellingPrice) || 0;
   const pricing = resolveUnitPrice({
@@ -156,6 +157,7 @@ const toDesignCard = (d, now) => {
  */
 export const getEcommerceDesigns = async ({
   storefrontId,
+  publishedOnly = false,
   category,
   search,
   categories,
@@ -172,7 +174,7 @@ export const getEcommerceDesigns = async ({
     matchConditions.quantity = { $gt: 0 };
   }
 
-  const inventoryMatch = { "inventoryDoc.isDeleted": { $ne: true } };
+  const inventoryMatch = ecommerceInventoryFilter(publishedOnly, "inventoryDoc.");
   if (size && String(size).trim()) {
     inventoryMatch["inventoryDoc.size"] = String(size).trim();
   }
@@ -267,7 +269,7 @@ export const getEcommerceDesigns = async ({
       $facet: {
         metadata: [{ $count: "total" }],
         data: [
-          { $sort: { createdAt: -1 } },
+          { $sort: { createdAt: -1, _id: 1 } },
           { $skip: (page - 1) * limit },
           { $limit: limit },
         ],

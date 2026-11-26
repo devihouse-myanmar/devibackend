@@ -1,6 +1,7 @@
 import express from "express";
 import {
   createStorefrontInventory,
+  receiveMainStoreInventory,
   getAllStorefrontInventory,
   getStorefrontInventoryById,
   updateStorefrontInventoryQuantity,
@@ -11,6 +12,13 @@ import {
 import { protect } from "../controllers/administrationPolicy.controller.js";
 import { permissionGranted } from "../controllers/administrationPolicy.controller.js";
 const router = express.Router();
+
+router.post(
+  "/storefront-inventory/main-store/receive",
+  protect,
+  permissionGranted("owner", "admin", "warehouse"),
+  receiveMainStoreInventory,
+);
 
 // Create new storefront inventory
 router.post(

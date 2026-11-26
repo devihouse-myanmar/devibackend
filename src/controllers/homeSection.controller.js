@@ -3,12 +3,14 @@ import HomeSection from "../models/homeSection.model.js";
 import { asyncErrorHandler } from "../utils/asyncErrorHandler.js";
 import CustomError from "../utils/customError.js";
 import {
+  escapeRegex,
   getEcommerceDesigns,
   getBestSellingDesigns,
 } from "../services/ecommerceCatalog.service.js";
-import { getOrCreateEcommerceStorefront } from "./ecommerce.controller.js";
+import { getEcommerceStockSource, requireMainStorefront } from "../services/sharedStock.service.js";
 
 const CARDS_PER_SECTION = 3;
+const DESIGN_PICKER_PAGE_SIZE = 3;
 const EDITABLE_FIELDS = [
   "title",
   "description",
@@ -55,9 +57,10 @@ export const resolveSectionDesigns = async (
   section,
   { page = 1, limit = CARDS_PER_SECTION, pattern, size, q } = {},
 ) => {
-  const ecommerceStore = await getOrCreateEcommerceStorefront();
+  const { storefront, publishedOnly } = await getEcommerceStockSource();
   const base = {
-    storefrontId: ecommerceStore._id,
+    storefrontId: storefront._id,
+    publishedOnly,
     page,
     limit,
     ...(size && String(size).trim() ? { size: String(size).trim() } : {}),
@@ -169,6 +172,30 @@ export const getPublicHomeSectionProducts = asyncErrorHandler(async (req, res, n
 });
 
 // ---------- Admin (owner, admin) ----------
+
+export const getHomeSectionDesigns = asyncErrorHandler(async (req, res) => {
+  const requestedPage = typeof req.query.page === "string" ? Number(req.query.page) : 1;
+  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 &&
+    Number.isSafeInteger((requestedPage - 1) * DESIGN_PICKER_PAGE_SIZE) ? requestedPage : 1;
+  const search = typeof req.query.search === "string" ? escapeRegex(req.query.search.trim()) : "";
+  const storefront = await requireMainStorefront();
+  const { data, total } = await getEcommerceDesigns({
+    storefrontId: storefront._id,
+    inStockOnly: false,
+    search,
+    page,
+    limit: DESIGN_PICKER_PAGE_SIZE,
+  });
+
+  res.status(200).json({
+    success: true,
+    data: data.map(({ _id, category, designName, image, price }) => ({ _id, category, designName, image, price })),
+    pagination: {
+      page,
+      totalPages: Math.ceil(total / DESIGN_PICKER_PAGE_SIZE),
+    },
+  });
+});
 
 export const getAllHomeSections = asyncErrorHandler(async (req, res, next) => {
   const sections = await HomeSection.find()

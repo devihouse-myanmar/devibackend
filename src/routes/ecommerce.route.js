@@ -2,6 +2,7 @@ import express from "express";
 import uploadPaymentScreenshot from "../middlewares/multerSlipUpload.middleware.js";
 import trackOrderRateLimiter from "../middlewares/trackOrderRateLimiter.middleware.js";
 import deliveryQuoteRateLimiter from "../middlewares/deliveryQuoteRateLimiter.middleware.js";
+import { authorizeCustomerCheckout } from "../middlewares/customerAuth.middleware.js";
 import {
   createEcommerceOrder,
   getEcommerceOrderTrack,
@@ -34,6 +35,7 @@ router.get("/ecommerce/products/:id", getEcommerceProductById);
 router.post(
   "/ecommerce/orders",
   uploadPaymentScreenshot.single("paymentScreenshot"),
+  authorizeCustomerCheckout,
   createEcommerceOrder,
 );
 

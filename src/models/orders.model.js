@@ -63,6 +63,13 @@ const orderSchema = new mongoose.Schema(
       ref: "CreditPerson",
       default: null,
     },
+    customerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Customer",
+      immutable: true,
+      select: false,
+      default: null,
+    },
     subTotal: {
       type: Number,
       default: null,
@@ -291,10 +298,9 @@ orderSchema.statics.generateOrderNumber = async function (
   const day = String(now.getDate()).padStart(2, "0");
   const prefix = `${prefixType}-${year}-${month}-${day}-`;
 
-  // Find the latest order for this date and prefix (excluding deleted)
+  // Include soft-deleted orders: their order numbers are still unique and cannot be reused.
   const latestOrder = await this.findOne({
     orderNumber: new RegExp(`^${prefixType}-${year}-${month}-${day}-`),
-    isDeleted: false,
   })
     .sort({ orderNumber: -1 })
     .select("orderNumber");
@@ -327,6 +333,9 @@ orderSchema.statics.generateOrderNumber = async function (
 orderSchema.index({ storefrontId: 1 });
 orderSchema.index({ isDeleted: 1 });
 orderSchema.index({ orderSource: 1 }); // For ecommerce vs pos queries
+orderSchema.index({ customerId: 1, orderSource: 1, isDeleted: 1, createdAt: -1, _id: -1 }, {
+  partialFilterExpression: { customerId: { $type: "objectId" } },
+});
 orderSchema.index({ createdAt: -1 }); // For recent orders
 // Note: orderNumber index is automatically created by unique: true in schema
 orderSchema.index({ storefrontId: 1, isDeleted: 1 }); // Compound index for common queries

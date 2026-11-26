@@ -3,6 +3,7 @@ import { asyncErrorHandler } from "../utils/asyncErrorHandler.js";
 import CustomError from "../utils/customError.js";
 import { validatePhoneNumber } from "../utils/phoneValidation.utils.js";
 import LocationProfile from "../models/locationProfile.model.js";
+import { findMainStorefront } from "../services/sharedStock.service.js";
 
 // Create new storefront profile
 export const createStorefrontProfile = asyncErrorHandler(
@@ -123,11 +124,13 @@ export const getAllStorefrontProfiles = asyncErrorHandler(
 
     // Get total count for pagination
     const total = await LocationProfile.countDocuments(query);
+    const mainStorefront = await findMainStorefront();
 
     res.status(200).json({
       success: true,
       message: "Storefront profiles retrieved successfully",
       data: storefronts,
+      sharedStock: { enabled: true, mainStorefront },
       pagination: {
         currentPage: pageNum,
         totalPages: Math.ceil(total / limitNum),

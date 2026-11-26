@@ -144,6 +144,7 @@ const inventorySchema = new mongoose.Schema(
       },
       default: "active",
     },
+    ecommercePublished: { type: Boolean, default: false },
     tags: [
       {
         type: String,
