@@ -17,6 +17,7 @@ import HomeSection from "../models/homeSection.model.js";
 import { resolveSectionDesigns } from "./homeSection.controller.js";
 import {
   resolveDeliveryFee,
+  validateEcommerceDeliveryQuote,
   getCachedActiveTownships,
   getCachedDeliverySettings,
 } from "../services/deliveryFee.service.js";
@@ -48,7 +49,8 @@ export const createEcommerceOrder = asyncErrorHandler(
       phone,
       address,
       township,
-      city = "Yangon",
+      manualTownship,
+      city,
       deliMethod,
       gateName = "",
       carGateDestination = "",
@@ -60,7 +62,7 @@ export const createEcommerceOrder = asyncErrorHandler(
       paymentProvider,
       items,
       note = "",
-      deliFee = 0, // Ignored per D2: server decides the fee
+      expectedDelivery,
     } = req.body;
 
     // Validate Customer Info
@@ -88,12 +90,19 @@ export const createEcommerceOrder = asyncErrorHandler(
 
     // Validation per Delivery Method
     const effectiveDestination = (carGateDestination || destination || "").trim();
+    const townshipName = typeof township === "string" ? township.trim() : "";
+    const isManualTownship = normalizedDeliMethod === "deli_service" &&
+      (manualTownship === true || manualTownship === "true");
+    const deliveryCity = (typeof city === "string" && city.trim()) || (isManualTownship ? "" : "Yangon");
     if (normalizedDeliMethod === "deli_service") {
       if (!address || !address.trim()) {
         return next(new CustomError(400, "Delivery address is required for home delivery"));
       }
-      if (!township || !township.trim()) {
+      if (!townshipName) {
         return next(new CustomError(400, "Township is required for home delivery"));
+      }
+      if (townshipName.length > 120) {
+        return next(new CustomError(400, "Township name must be 120 characters or fewer"));
       }
     } else if (normalizedDeliMethod === "car_gate") {
       if (!gateName || !gateName.trim()) {
@@ -136,6 +145,15 @@ export const createEcommerceOrder = asyncErrorHandler(
         ),
       );
     }
+
+    const feeResult = await resolveDeliveryFee({
+      paymentMethod: normalizedPaymentMethod,
+      deliMethod: normalizedDeliMethod,
+      township: townshipName,
+      phone: phone.trim(),
+    });
+    validateEcommerceDeliveryQuote(feeResult, normalizedPaymentMethod, expectedDelivery);
+    const finalDeliFee = feeResult.fee;
 
     // Validate Payment Provider & Screenshot if Cash Down
     const validPaymentProviders = [
@@ -215,16 +233,6 @@ export const createEcommerceOrder = asyncErrorHandler(
       await checkEcommerceItems(parsedItems, stockSource);
     }
 
-    // Server resolves the delivery fee (D2: ignore any client-sent deliFee)
-    const feeResult = await resolveDeliveryFee({
-      paymentMethod: normalizedPaymentMethod,
-      deliMethod: normalizedDeliMethod,
-      township: (township && township.trim()) || "",
-      phone: (phone && phone.trim()) || "",
-    });
-
-    const finalDeliFee = feeResult.fee;
-
     // Find or Auto-Create CreditPerson profile for unified customer management
     let creditPersonId = null;
     try {
@@ -232,8 +240,8 @@ export const createEcommerceOrder = asyncErrorHandler(
       const customerName = name.trim();
       const customerAddress = [
         (address && address.trim()) || "",
-        (township && township.trim()) || "",
-        effectiveDestination || (city && city.trim()),
+        townshipName,
+        effectiveDestination || deliveryCity,
       ]
         .filter(Boolean)
         .join(", ");
@@ -295,11 +303,8 @@ export const createEcommerceOrder = asyncErrorHandler(
         name: name.trim(),
         phone: phone.trim(),
         address: (address && address.trim()) || "",
-        township: (township && township.trim()) || "",
-        city:
-          normalizedDeliMethod === "car_gate"
-            ? effectiveDestination || (city && city.trim()) || "Yangon"
-            : (city && city.trim()) || "Yangon",
+        township: townshipName,
+        city: normalizedDeliMethod === "car_gate" ? effectiveDestination : deliveryCity,
       },
       deliveryInfo: {
         deliMethod: normalizedDeliMethod,
@@ -948,9 +953,13 @@ export const getDeliveryOptions = asyncErrorHandler(async (req, res, next) => {
   });
 });
 
-// 7. Get Public Delivery Quote for Checkout (Cash Down only, never reveals free customer reason)
+// 7. Public checkout quote, including the shop-wide promotion
 export const getDeliveryQuote = asyncErrorHandler(async (req, res, next) => {
   const { paymentMethod, deliMethod, township, phone } = req.body || {};
+  if (township != null &&
+      (typeof township !== "string" || township.trim().length > 120)) {
+    return next(new CustomError(400, "Township name must be 120 characters or fewer"));
+  }
 
   const quote = await resolveDeliveryFee({
     paymentMethod,
@@ -959,11 +968,12 @@ export const getDeliveryQuote = asyncErrorHandler(async (req, res, next) => {
     phone,
   });
 
-  res.status(200).json({
+  res.set("Cache-Control", "no-store").status(200).json({
     status: "success",
     data: {
       fee: quote.fee,
       feePending: quote.feePending,
+      freeDeliveryEvent: quote.feeSource === "event",
     },
   });
 });

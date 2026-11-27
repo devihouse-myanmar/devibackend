@@ -1878,12 +1878,15 @@ const populateOrderForResponse = async (order) => {
 };
 
 // E-commerce order lifecycle:
-//   pending → confirmed → shipped → completed, and any open step → cancelled.
+//   pending → confirmed → packaged → dispatched → shipped → completed.
+// Any open step can still be cancelled.
 // "completed" is the final step because every sales report only counts completed orders.
 // "delivered" is kept as a source state for orders updated before the completed step existed.
 const ECOMMERCE_STATUS_TRANSITIONS = {
   pending: ["confirmed", "cancelled"],
-  confirmed: ["shipped", "cancelled"],
+  confirmed: ["packaged", "cancelled"],
+  packaged: ["dispatched", "cancelled"],
+  dispatched: ["shipped", "cancelled"],
   shipped: ["completed", "cancelled"],
   delivered: ["completed", "cancelled"],
   completed: [],

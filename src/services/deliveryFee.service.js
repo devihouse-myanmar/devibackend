@@ -2,9 +2,43 @@ import NodeCache from "node-cache";
 import DeliveryTownship from "../models/deliveryTownship.model.js";
 import ShopSetting from "../models/shopSetting.model.js";
 import CreditPerson from "../models/creditPersona.model.js";
+import HomeSection from "../models/homeSection.model.js";
+import CustomError from "../utils/customError.js";
 import { formatPhoneNumber } from "../utils/phoneValidation.utils.js";
 
 const deliveryCache = new NodeCache({ stdTTL: 300 });
+const PENDING_FEE = { fee: 0, feeSource: "pending", feePending: true };
+
+export async function hasActiveFreeDeliveryEvent(session = null) {
+  return Boolean(await HomeSection.exists({ isActive: true, deliveryFeeMode: "free" }).session(session));
+}
+
+export function deliveryTermsChanged() {
+  return new CustomError(409, "Delivery terms changed. Review the updated checkout total before placing the order.", "DELIVERY_TERMS_CHANGED");
+}
+
+export function validateEcommerceDeliveryQuote(quote, paymentMethod, expectedDelivery) {
+  const freeDeliveryEvent = quote.feeSource === "event";
+  if (expectedDelivery === undefined) {
+    if (freeDeliveryEvent && paymentMethod === "cash_down") throw deliveryTermsChanged();
+    return;
+  }
+
+  let expected = expectedDelivery;
+  try {
+    if (typeof expected === "string") expected = JSON.parse(expected);
+  } catch {
+    throw new CustomError(400, "Invalid delivery quote");
+  }
+  if (!expected || !Number.isFinite(expected.fee) || typeof expected.feePending !== "boolean" ||
+      typeof expected.freeDeliveryEvent !== "boolean") {
+    throw new CustomError(400, "Invalid delivery quote");
+  }
+  if (expected.fee !== quote.fee || expected.feePending !== quote.feePending ||
+      expected.freeDeliveryEvent !== freeDeliveryEvent) {
+    throw deliveryTermsChanged();
+  }
+}
 
 export const clearDeliveryCache = () => {
   deliveryCache.del("active_townships");
@@ -61,6 +95,10 @@ export async function resolveDeliveryFee({
   township,
   phone,
 }) {
+  if (await hasActiveFreeDeliveryEvent()) {
+    return { fee: 0, feeSource: "event", feePending: false };
+  }
+
   const normalizedPayment = (paymentMethod || "")
     .trim()
     .toLowerCase()
@@ -70,21 +108,11 @@ export async function resolveDeliveryFee({
     .trim()
     .toLowerCase()
     .replace(/[\s-]/g, "_");
-
-  // D3: COD orders -> no online fee, courier collects at delivery
-  if (
-    normalizedPayment === "cod" ||
-    normalizedPayment === "cash_on_delivery"
-  ) {
-    return {
-      fee: 0,
-      feeSource: "cod",
-      feePending: false,
-    };
-  }
+  const townshipName = typeof township === "string" ? township.trim() : "";
+  const isCod = normalizedPayment === "cod" || normalizedPayment === "cash_on_delivery";
 
   // D6 & D10: Free-delivery customer check for cash-down orders (Exact normalized phone match only)
-  if (phone) {
+  if (!isCod && phone) {
     const rawTrimmed = String(phone).trim();
     const phoneCandidates = new Set([rawTrimmed]);
 
@@ -129,6 +157,8 @@ export async function resolveDeliveryFee({
 
   // D5: Car gate method
   if (normalizedDeli === "car_gate") {
+    if (isCod) return { fee: 0, feeSource: "cod", feePending: false };
+
     const settings = await getCachedDeliverySettings();
     return {
       fee: settings.carGateFee || 0,
@@ -137,19 +167,12 @@ export async function resolveDeliveryFee({
     };
   }
 
-  // D4: Cash down + Deli service
-  if (township && typeof township === "string" && township.trim()) {
-    const trimmedTownship = township.trim();
+  // Home delivery uses the configured township rate for both payment methods.
+  if (normalizedDeli === "deli_service" && townshipName) {
     const townships = await getCachedActiveTownships();
-    const matched = townships.find((t) => t.township === trimmedTownship);
+    const matched = townships.find((t) => t.township === townshipName);
 
-    if (
-      matched &&
-      matched.fee !== null &&
-      matched.fee !== undefined &&
-      typeof matched.fee === "number" &&
-      matched.fee >= 0
-    ) {
+    if (Number.isFinite(matched?.fee) && matched.fee >= 0) {
       return {
         fee: matched.fee,
         feeSource: "township",
@@ -159,9 +182,5 @@ export async function resolveDeliveryFee({
   }
 
   // No fee set or township not found / not active -> feePending
-  return {
-    fee: 0,
-    feeSource: "pending",
-    feePending: true,
-  };
+  return PENDING_FEE;
 }

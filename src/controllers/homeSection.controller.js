@@ -21,6 +21,7 @@ const EDITABLE_FIELDS = [
   "tag",
   "bestSellingDays",
   "isActive",
+  "deliveryFeeMode",
 ];
 
 const toSlug = (value) =>

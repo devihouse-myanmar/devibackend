@@ -56,6 +56,7 @@ const homeSectionSchema = new mongoose.Schema(
     },
     sortOrder: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
+    deliveryFeeMode: { type: String, enum: ["standard", "free"], required: true, default: "standard" },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", default: null },
   },
   { timestamps: true },
@@ -71,6 +72,7 @@ homeSectionSchema.pre("validate", function () {
 });
 
 homeSectionSchema.index({ isActive: 1, sortOrder: 1 });
+homeSectionSchema.index({ deliveryFeeMode: 1, isActive: 1 });
 
 const HomeSection = mongoose.model("HomeSection", homeSectionSchema);
 export default HomeSection;

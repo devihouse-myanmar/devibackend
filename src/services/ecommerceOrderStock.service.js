@@ -5,6 +5,7 @@ import StorefrontInventory from "../models/storefrontInventory.model.js";
 import CustomError from "../utils/customError.js";
 import { resolveUnitPrice } from "../utils/pricing.utils.js";
 import { deductStorefrontStock, ecommerceInventoryFilter, requireMainStorefront } from "./sharedStock.service.js";
+import { deliveryTermsChanged, hasActiveFreeDeliveryEvent } from "./deliveryFee.service.js";
 
 export function parseEcommerceItems(input) {
   let items = input;
@@ -72,6 +73,10 @@ export async function createEcommerceOrderWithStock({ items, stockSource, delive
     const orderNumber = await Order.generateOrderNumber(date, "ECO");
     try {
       return await mongoose.connection.transaction(async (session) => {
+        const freeDeliveryEvent = await hasActiveFreeDeliveryEvent(session);
+        if (freeDeliveryEvent !== (orderData.deliveryInfo.feeSource === "event")) {
+          throw deliveryTermsChanged();
+        }
         if (publishedOnly) await requireMainStorefront(storefront.locationCode, session);
         const priced = await resolveEcommerceLines(items, stockSource, session);
         for (const { line, label } of priced) {

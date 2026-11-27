@@ -114,13 +114,15 @@ const orderSchema = new mongoose.Schema(
         values: [
           "pending",
           "confirmed",
+          "packaged",
+          "dispatched",
           "shipped",
           "delivered",
           "completed",
           "cancelled",
         ],
         message:
-          "Order status must be pending, confirmed, shipped, delivered, completed, or cancelled",
+          "Order status must be pending, confirmed, packaged, dispatched, shipped, delivered, completed, or cancelled",
       },
       default: "pending",
     },
@@ -149,7 +151,7 @@ const orderSchema = new mongoose.Schema(
       deliFee: { type: Number, default: 0, min: 0 },
       feeSource: {
         type: String,
-        enum: ["cod", "township", "carGate", "freeCustomer", "pending", "manual", null],
+        enum: ["cod", "township", "carGate", "freeCustomer", "event", "pending", "manual", null],
         default: null,
       },
       feePending: { type: Boolean, default: false },
